@@ -1,1 +1,1 @@
-worker: python salefile.py
+worker: python main.py
