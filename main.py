@@ -117,10 +117,76 @@ async def sms_webhook(request: web.Request) -> web.Response:
     return web.json_response({"status": "delivered", "order_id": order_id})
 
 
+async def upi_redirect(request: web.Request) -> web.Response:
+    """
+    GET /upi?pa=...&pn=...&am=...&cu=INR
+    Telegram buttons need HTTPS links — this bridges to the upi:// deep link.
+    Returns an HTML page that auto-redirects to the UPI app.
+    """
+    pa = request.rel_url.query.get("pa", "")
+    pn = request.rel_url.query.get("pn", "")
+    am = request.rel_url.query.get("am", "")
+    cu = request.rel_url.query.get("cu", "INR")
+
+    if not pa or not am:
+        return web.Response(status=400, text="Missing pa or am")
+
+    from urllib.parse import quote
+    upi_link = f"upi://pay?pa={quote(pa)}&pn={quote(pn)}&am={am}&cu={cu}"
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pay ₹{am}</title>
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{ font-family: -apple-system, sans-serif; background: #0f0f23;
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh; padding: 20px; }}
+    .card {{ background: #1a1a35; border-radius: 20px; padding: 36px 28px;
+             text-align: center; max-width: 340px; width: 100%;
+             border: 1px solid #2d2d5e; }}
+    .amount {{ font-size: 42px; font-weight: 700; color: #fff; margin: 12px 0; }}
+    .label {{ color: #8888bb; font-size: 14px; margin-bottom: 4px; }}
+    .upi {{ color: #a0a0cc; font-size: 13px; margin-bottom: 28px; }}
+    .btn {{ display: block; background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white; text-decoration: none; padding: 16px;
+            border-radius: 12px; font-size: 17px; font-weight: 600;
+            margin-bottom: 12px; }}
+    .note {{ color: #666699; font-size: 12px; line-height: 1.5; }}
+  </style>
+  <script>
+    window.onload = function() {{
+      setTimeout(function() {{ window.location.href = "{upi_link}"; }}, 300);
+    }};
+  </script>
+</head>
+<body>
+  <div class="card">
+    <div class="label">Pay to {pn or pa}</div>
+    <div class="amount">₹{am}</div>
+    <div class="upi">{pa}</div>
+    <a class="btn" href="{upi_link}">📲 Open UPI App</a>
+    <p class="note">Page will open your UPI app automatically.<br>
+    Use <b>exact amount ₹{am}</b> for auto-verification.</p>
+  </div>
+</body>
+</html>"""
+
+    return web.Response(
+        body=html.encode(),
+        content_type="text/html",
+        headers={"Cache-Control": "no-store"}
+    )
+
+
 async def start_webhook_server():
     """Start aiohttp server on port 5001 for SMS webhook."""
     app = web.Application()
     app.router.add_post("/sms", sms_webhook)
+    app.router.add_get("/upi", upi_redirect)
     app.router.add_get("/health", lambda r: web.json_response({"status": "ok"}))
 
     runner = web.AppRunner(app)
