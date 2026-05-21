@@ -23,7 +23,8 @@ def _pg_sql(sql: str) -> str:
     sql = re.sub(r'INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT', 'SERIAL PRIMARY KEY', sql, flags=re.IGNORECASE)
     sql = re.sub(r'\bINSERT\s+OR\s+IGNORE\s+INTO\b', 'INSERT INTO', sql, flags=re.IGNORECASE)
     sql = re.sub(r'\bINSERT\s+OR\s+REPLACE\s+INTO\b', 'INSERT INTO', sql, flags=re.IGNORECASE)
-    sql = sql.replace("DATE('now')", 'CURRENT_DATE')
+    sql = re.sub(r"DATE\('now'\)", 'CURRENT_DATE', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'\bDATE\((\w+)\)', r'(\1)::date', sql, flags=re.IGNORECASE)
     sql = re.sub(r'\?', '%s', sql)
     return sql
 
@@ -77,6 +78,12 @@ class UnifiedConn:
     def close(self):
         self._conn.close()
 
+    def rollback(self):
+        try:
+            self._conn.rollback()
+        except Exception:
+            pass
+
     def __enter__(self):
         return self
 
@@ -105,18 +112,32 @@ def get_conn() -> UnifiedConn:
     return UnifiedConn()
 
 
+def _safe_migrate(conn: UnifiedConn, sql: str):
+    """Run a migration query — silently rollback on failure (e.g. column already exists)."""
+    try:
+        conn.execute(sql)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
+
 def init_db():
     conn = get_conn()
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             telegram_id BIGINT UNIQUE,
             username TEXT,
             full_name TEXT,
             joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    conn.commit()
+
+    if IS_POSTGRES:
+        _safe_migrate(conn, "CREATE SEQUENCE IF NOT EXISTS users_id_seq")
+        _safe_migrate(conn, "ALTER TABLE users ALTER COLUMN id SET DEFAULT nextval('users_id_seq')")
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS vouchers (
@@ -127,15 +148,9 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    conn.commit()
 
-    try:
-        conn.execute("ALTER TABLE vouchers ADD COLUMN disclaimer TEXT DEFAULT NULL")
-        conn.commit()
-    except Exception:
-        try:
-            conn._conn.rollback()
-        except Exception:
-            pass
+    _safe_migrate(conn, "ALTER TABLE vouchers ADD COLUMN disclaimer TEXT DEFAULT NULL")
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS codes (
@@ -192,6 +207,8 @@ def init_db():
         [
             ("support_username", "@admin"),
             ("welcome_message", "Welcome! Buy vouchers here."),
+            ("maintenance_mode", "0"),
+            ("maintenance_msg", "🔧 <b>BOT UNDER MAINTENANCE</b>\n\nHum filhal bot ko update kar rahe hain.\nThodi der mein wapas aayein. Shukriya! 🙏"),
         ]
     )
 
