@@ -80,6 +80,7 @@ async def sms_webhook(request: web.Request) -> web.Response:
     from utils.db_helpers import deliver_codes, get_voucher_stock, get_setting, get_user
     from utils.messages import success_delivery_msg, admin_sale_receipt
 
+    # ── Step 1: DB-only work (fast, no network) ──────────────────────────────
     try:
         order = verify_payment(sms_text)
     except Exception as e:
@@ -100,10 +101,17 @@ async def sms_webhook(request: web.Request) -> web.Response:
     if codes is None:
         return web.json_response({"status": "error", "error": "Not enough stock"})
 
-    matched_amount = order.get("matched_amount", order.get("unique_amount", 0))
-    support = get_setting("support_username") or "@admin"
+    # ── Step 2: Reply to forwarder IMMEDIATELY — prevents retry/duplicate ─────
+    # Telegram notifications go out in the background task below.
+    logger.info(f"Auto-delivered order {order_id} via webhook")
 
-    if _bot:
+    async def _notify():
+        matched_amount = order.get("matched_amount", order.get("unique_amount", 0))
+        support = get_setting("support_username") or "@admin"
+
+        if not _bot:
+            return
+
         user_msg = success_delivery_msg(
             voucher_name=order["voucher_name"],
             codes=codes,
@@ -145,7 +153,7 @@ async def sms_webhook(request: web.Request) -> web.Response:
             except Exception:
                 pass
 
-    logger.info(f"Auto-delivered order {order_id} via webhook")
+    asyncio.create_task(_notify())
     return web.json_response({"status": "delivered", "order_id": order_id})
 
 
