@@ -52,22 +52,49 @@ def generate_raw_upi_link(amount: float, upi_id: str, shop_name: str) -> str:
 
 
 SMS_AMOUNT_PATTERNS = [
-    r"(?:Rs|INR|₹)\.?\s*([\d]+\.[\d]{2})",
-    r"received\s+(?:Rs|INR|₹)\.?\s*([\d]+\.[\d]{2})",
-    r"credited.*?(?:Rs|INR|₹)\.?\s*([\d]+\.[\d]{2})",
-    r"payment.*?(?:Rs|INR|₹)\.?\s*([\d]+\.[\d]{2})",
-    r"([\d]+\.[\d]{2})\s*(?:Rs|INR|₹)",
+    # ₹100.47 or Rs100.47 or INR100.47 (no space)
+    r"(?:Rs|INR|₹)\.?\s*([\d,]+\.[\d]{2})",
+    # debited by 100.47
+    r"debited\s+(?:by\s+)?(?:Rs\.?|INR|₹)\s*([\d,]+\.[\d]{2})",
+    # received Rs 100.47
+    r"received\s+(?:Rs\.?|INR|₹)\s*([\d,]+\.[\d]{2})",
+    # credited with Rs 100.47
+    r"credited.*?(?:Rs\.?|INR|₹)\s*([\d,]+\.[\d]{2})",
+    # payment of Rs 100.47
+    r"payment\s+of\s+(?:Rs\.?|INR|₹)\s*([\d,]+\.[\d]{2})",
+    # sent Rs 100.47
+    r"sent\s+(?:Rs\.?|INR|₹)\s*([\d,]+\.[\d]{2})",
+    # transferred Rs 100.47
+    r"transferred\s+(?:Rs\.?|INR|₹)\s*([\d,]+\.[\d]{2})",
+    # paid Rs 100.47
+    r"paid\s+(?:Rs\.?|INR|₹)\s*([\d,]+\.[\d]{2})",
+    # 100.47 Rs/INR/₹ (amount before symbol)
+    r"([\d,]+\.[\d]{2})\s*(?:Rs\.?|INR|₹)",
+    # Amount:100.47 or Amt:100.47
+    r"(?:amount|amt)[:\s]+(?:Rs\.?|INR|₹)?\s*([\d,]+\.[\d]{2})",
+    # UPI: 100.47 (some apps)
+    r"upi.*?([\d,]+\.[\d]{2})",
 ]
 
 
 def extract_amount_from_sms(sms_text: str) -> float | None:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Parsing SMS for amount: {sms_text[:120]}")
+
     for pattern in SMS_AMOUNT_PATTERNS:
         match = re.search(pattern, sms_text, re.IGNORECASE)
         if match:
             try:
-                return float(match.group(1))
+                # Remove commas (e.g. 1,000.47 → 1000.47)
+                amount_str = match.group(1).replace(",", "")
+                amount = float(amount_str)
+                logger.info(f"Amount extracted: {amount} (pattern: {pattern[:40]})")
+                return amount
             except (ValueError, IndexError):
                 continue
+
+    logger.warning(f"No amount found in SMS: {sms_text[:120]}")
     return None
 
 

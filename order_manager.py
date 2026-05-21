@@ -1,8 +1,12 @@
-"""order_manager.py — Order lifecycle: create, fetch, expire."""
+"""order_manager.py — Order lifecycle: create, fetch, expire.
+
+FIX: Pass datetime objects directly (not isoformat strings) so both
+SQLite and PostgreSQL handle timestamp comparisons correctly.
+"""
 
 import uuid
 from datetime import datetime, timedelta
-from database import get_conn
+from database import get_conn, IS_POSTGRES
 
 
 def create_order(user_id, voucher_id, quantity, total_price, unique_amount, expiry_minutes=5):
@@ -16,7 +20,7 @@ def create_order(user_id, voucher_id, quantity, total_price, unique_amount, expi
             status, created_at, expiry_at)
            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
         (order_id, user_id, voucher_id, quantity, total_price,
-         unique_amount, created_at.isoformat(), expiry_at.isoformat())
+         unique_amount, created_at, expiry_at)
     )
     conn.commit()
     conn.close()
@@ -25,32 +29,54 @@ def create_order(user_id, voucher_id, quantity, total_price, unique_amount, expi
 
 def is_amount_taken(amount: float) -> bool:
     """Check if a unique_amount is already used by an active pending order."""
-    now = datetime.now().isoformat()
+    now = datetime.now()
     conn = get_conn()
-    row = conn.execute("""
-        SELECT id FROM orders
-        WHERE unique_amount = ?
-          AND status = 'pending'
-          AND expiry_at > ?
-        LIMIT 1
-    """, (amount, now)).fetchone()
+    if IS_POSTGRES:
+        # Use small tolerance for float comparison in PostgreSQL
+        row = conn.execute("""
+            SELECT id FROM orders
+            WHERE ABS(unique_amount - ?) < 0.001
+              AND status = 'pending'
+              AND expiry_at > ?
+            LIMIT 1
+        """, (amount, now)).fetchone()
+    else:
+        row = conn.execute("""
+            SELECT id FROM orders
+            WHERE unique_amount = ?
+              AND status = 'pending'
+              AND expiry_at > ?
+            LIMIT 1
+        """, (amount, now)).fetchone()
     conn.close()
     return row is not None
 
 
 def get_pending_order_by_amount(amount: float) -> dict | None:
-    now = datetime.now().isoformat()
+    now = datetime.now()
     conn = get_conn()
-    row = conn.execute("""
-        SELECT o.*, v.name as voucher_name, v.price as voucher_price
-        FROM orders o
-        JOIN vouchers v ON v.id = o.voucher_id
-        WHERE o.unique_amount = ?
-          AND o.status = 'pending'
-          AND o.expiry_at > ?
-        ORDER BY o.created_at DESC
-        LIMIT 1
-    """, (amount, now)).fetchone()
+    if IS_POSTGRES:
+        row = conn.execute("""
+            SELECT o.*, v.name as voucher_name, v.price as voucher_price
+            FROM orders o
+            JOIN vouchers v ON v.id = o.voucher_id
+            WHERE ABS(o.unique_amount - ?) < 0.001
+              AND o.status = 'pending'
+              AND o.expiry_at > ?
+            ORDER BY o.created_at DESC
+            LIMIT 1
+        """, (amount, now)).fetchone()
+    else:
+        row = conn.execute("""
+            SELECT o.*, v.name as voucher_name, v.price as voucher_price
+            FROM orders o
+            JOIN vouchers v ON v.id = o.voucher_id
+            WHERE o.unique_amount = ?
+              AND o.status = 'pending'
+              AND o.expiry_at > ?
+            ORDER BY o.created_at DESC
+            LIMIT 1
+        """, (amount, now)).fetchone()
     conn.close()
     return dict(row) if row else None
 
@@ -63,7 +89,7 @@ def mark_order_paid(order_id: str):
 
 
 def expire_orders() -> list[dict]:
-    now = datetime.now().isoformat()
+    now = datetime.now()
     conn = get_conn()
     rows = conn.execute("""
         SELECT o.*, v.name as voucher_name
