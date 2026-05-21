@@ -1,8 +1,4 @@
-"""order_manager.py — Order lifecycle: create, fetch, expire.
-
-FIX: Pass datetime objects directly (not isoformat strings) so both
-SQLite and PostgreSQL handle timestamp comparisons correctly.
-"""
+"""order_manager.py — Order lifecycle: create, fetch, expire."""
 
 import uuid
 from datetime import datetime, timedelta
@@ -28,11 +24,9 @@ def create_order(user_id, voucher_id, quantity, total_price, unique_amount, expi
 
 
 def is_amount_taken(amount: float) -> bool:
-    """Check if a unique_amount is already used by an active pending order."""
     now = datetime.now()
     conn = get_conn()
     if IS_POSTGRES:
-        # Use small tolerance for float comparison in PostgreSQL
         row = conn.execute("""
             SELECT id FROM orders
             WHERE ABS(unique_amount - ?) < 0.001
