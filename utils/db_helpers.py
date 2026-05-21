@@ -247,20 +247,20 @@ def get_pending_orders() -> list[dict]:
 
 def get_stats() -> dict:
     conn = get_conn()
-    tu = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
-    to = conn.execute("SELECT COUNT(*) as c FROM orders WHERE status = 'approved'").fetchone()["c"]
-    po = conn.execute("SELECT COUNT(*) as c FROM orders WHERE status = 'pending'").fetchone()["c"]
-    te = conn.execute("SELECT COALESCE(SUM(total_price), 0) as s FROM orders WHERE status = 'approved'").fetchone()["s"]
-    ty = conn.execute("SELECT COALESCE(SUM(total_price), 0) as s FROM orders WHERE status = 'approved' AND DATE(approved_at) = DATE('now')").fetchone()["s"]
+    tu  = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
+    to_ = conn.execute("SELECT COUNT(*) as c FROM orders WHERE status = 'approved'").fetchone()["c"]
+    po  = conn.execute("SELECT COUNT(*) as c FROM orders WHERE status = 'pending'").fetchone()["c"]
+    te  = conn.execute("SELECT COALESCE(SUM(total_price), 0) as s FROM orders WHERE status = 'approved'").fetchone()["s"]
+    ty  = conn.execute("SELECT COALESCE(SUM(total_price), 0) as s FROM orders WHERE status = 'approved' AND DATE(approved_at) = DATE('now')").fetchone()["s"]
     tyo = conn.execute("SELECT COUNT(*) as c FROM orders WHERE status = 'approved' AND DATE(approved_at) = DATE('now')").fetchone()["c"]
     conn.close()
     return {
-        "total_users": tu,
-        "total_orders": to,
-        "pending_orders": po,
-        "total_earnings": te,
-        "today_earnings": ty,
-        "today_orders": tyo
+        "total_users":    int(tu  or 0),
+        "total_orders":   int(to_ or 0),
+        "pending_orders": int(po  or 0),
+        "total_earnings": float(te  or 0),
+        "today_earnings": float(ty  or 0),
+        "today_orders":   int(tyo or 0),
     }
 
 
@@ -323,6 +323,14 @@ def set_setting(key: str, value: str):
     conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
     conn.commit()
     conn.close()
+
+
+def is_maintenance() -> bool:
+    return get_setting("maintenance_mode") == "1"
+
+
+def set_maintenance(on: bool):
+    set_setting("maintenance_mode", "1" if on else "0")
 
 
 def get_all_channels() -> list[dict]:
