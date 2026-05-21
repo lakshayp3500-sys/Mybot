@@ -151,17 +151,6 @@ def payment_waiting_msg(
     )
 
 
-def order_expired_msg(order_id: str, voucher_name: str, expiry_minutes: int) -> str:
-    return (
-        f"⏰ <b>ORDER EXPIRED</b>\n"
-        f"{DIVIDER}\n\n"
-        f"🆔 Order <code>#{order_id}</code>\n"
-        f"🎁 {voucher_name}\n\n"
-        f"No payment detected within {expiry_minutes} minutes.\n\n"
-        f"💡 Tap <b>🛍 Buy Vouchers</b> to place a new order."
-    )
-
-
 def order_detail_msg(order: dict, codes: list[str]) -> str:
     status_map = {
         "pending":   "⏳ Awaiting Payment",
