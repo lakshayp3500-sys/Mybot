@@ -297,6 +297,20 @@ def get_out_of_stock_vouchers() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def get_voucher_disclaimer(voucher_id: int) -> str:
+    conn = get_conn()
+    row = conn.execute("SELECT disclaimer FROM vouchers WHERE id = ?", (voucher_id,)).fetchone()
+    conn.close()
+    return row["disclaimer"] if row and row["disclaimer"] else ""
+
+
+def set_voucher_disclaimer(voucher_id: int, text: str):
+    conn = get_conn()
+    conn.execute("UPDATE vouchers SET disclaimer = ? WHERE id = ?", (text, voucher_id))
+    conn.commit()
+    conn.close()
+
+
 def get_setting(key: str) -> str:
     conn = get_conn()
     row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
