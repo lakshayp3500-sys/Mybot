@@ -132,7 +132,10 @@ def init_db():
         conn.execute("ALTER TABLE vouchers ADD COLUMN disclaimer TEXT DEFAULT NULL")
         conn.commit()
     except Exception:
-        pass
+        try:
+            conn._conn.rollback()
+        except Exception:
+            pass
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS codes (
