@@ -13,14 +13,15 @@ from states.states import BuyStates
 from utils.db_helpers import (
     get_all_vouchers_with_stock, get_voucher,
     get_order, cancel_order, deliver_codes,
-    get_user_active_order, get_order_codes
+    get_user_active_order, get_order_codes,
+    get_voucher_disclaimer
 )
 from utils.messages import success_delivery_msg, payment_waiting_msg, DIVIDER
 from order_manager import create_order, get_order_by_id
 from payment import generate_unique_amount, generate_upi_link, generate_raw_upi_link
 from qr_generator import generate_qr_with_label
 from keyboards.reply import main_menu, cancel_keyboard
-from keyboards.inline import vouchers_keyboard, quantity_keyboard, payment_keyboard
+from keyboards.inline import vouchers_keyboard, quantity_keyboard, payment_keyboard, disclaimer_keyboard
 from config import ADMIN_IDS, UPI_ID, SHOP_NAME, ORDER_EXPIRY_MINUTES, API_BASE_URL
 
 router = Router()
@@ -135,7 +136,7 @@ async def select_quantity(callback: CallbackQuery, state: FSMContext):
     except Exception:
         pass
 
-    await _send_payment_qr(
+    await _show_disclaimer_or_pay(
         bot=callback.bot,
         chat_id=callback.from_user.id,
         state=state,
@@ -176,7 +177,7 @@ async def handle_custom_quantity(message: Message, state: FSMContext):
     total = quantity * price
     await state.update_data(quantity=quantity, total=total)
 
-    await _send_payment_qr(
+    await _show_disclaimer_or_pay(
         bot=message.bot,
         chat_id=message.from_user.id,
         state=state,
@@ -187,6 +188,75 @@ async def handle_custom_quantity(message: Message, state: FSMContext):
         price=price,
         total=total
     )
+
+
+async def _show_disclaimer_or_pay(
+    bot: Bot,
+    chat_id: int,
+    state: FSMContext,
+    user_id: int,
+    voucher_id: int,
+    voucher_name: str,
+    quantity: int,
+    price: float,
+    total: float
+):
+    disclaimer = get_voucher_disclaimer(voucher_id)
+    await state.update_data(
+        voucher_id=voucher_id,
+        voucher_name=voucher_name,
+        quantity=quantity,
+        price=price,
+        total=total,
+        user_id=user_id
+    )
+    if disclaimer:
+        await bot.send_message(
+            chat_id,
+            f"⚠️ <b>IMPORTANT — READ BEFORE BUYING ⚠️</b>\n\n"
+            f"{disclaimer}",
+            parse_mode="HTML",
+            reply_markup=disclaimer_keyboard()
+        )
+        await state.set_state(BuyStates.confirm_disclaimer)
+    else:
+        await _send_payment_qr(bot, chat_id, state, user_id, voucher_id, voucher_name, quantity, price, total)
+
+
+@router.callback_query(BuyStates.confirm_disclaimer, F.data == "disclaimer_accept")
+async def disclaimer_accept(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await _send_payment_qr(
+        bot=callback.bot,
+        chat_id=callback.from_user.id,
+        state=state,
+        user_id=callback.from_user.id,
+        voucher_id=data["voucher_id"],
+        voucher_name=data["voucher_name"],
+        quantity=data["quantity"],
+        price=data["price"],
+        total=data["total"]
+    )
+    await callback.answer()
+
+
+@router.callback_query(BuyStates.confirm_disclaimer, F.data == "disclaimer_cancel")
+async def disclaimer_cancel(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(
+        "❌ <b>Purchase Cancelled.</b>\n\nTap <b>🛍 Buy Vouchers</b> to start again.",
+        parse_mode="HTML",
+        reply_markup=main_menu()
+    )
+    await callback.answer("Cancelled.")
 
 
 async def _send_payment_qr(
