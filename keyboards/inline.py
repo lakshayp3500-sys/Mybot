@@ -39,6 +39,14 @@ def payment_keyboard(order_id: str, upi_link: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def disclaimer_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✅ I Understand", callback_data="disclaimer_accept")
+    builder.button(text="❌ Cancel Payment", callback_data="disclaimer_cancel")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def admin_approve_keyboard(order_id: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="✅ Approve & Deliver", callback_data=f"approve:{order_id}")
