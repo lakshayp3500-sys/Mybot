@@ -123,9 +123,16 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE,
             price REAL,
+            disclaimer TEXT DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    try:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN disclaimer TEXT DEFAULT NULL")
+        conn.commit()
+    except Exception:
+        pass
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS codes (
