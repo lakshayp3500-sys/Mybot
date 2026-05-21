@@ -1,8 +1,5 @@
 """
 handlers/buy.py — User purchase flow (UPI semi-auto payment).
-
-BUG FIX: deliver_codes() is now idempotent. Double-delivery is impossible —
-calling it twice for the same order returns the same codes, not new ones.
 """
 
 import asyncio
@@ -29,7 +26,6 @@ from config import ADMIN_IDS, UPI_ID, SHOP_NAME, ORDER_EXPIRY_MINUTES, API_BASE_
 router = Router()
 
 
-# ─── STEP 1: Show voucher list ────────────────────────────────────────────────
 @router.message(F.text == "🛍 Buy Vouchers")
 async def buy_vouchers(message: Message, state: FSMContext):
     await state.clear()
@@ -68,7 +64,6 @@ async def buy_vouchers(message: Message, state: FSMContext):
     await state.set_state(BuyStates.select_voucher)
 
 
-# ─── STEP 2: Select voucher ───────────────────────────────────────────────────
 @router.callback_query(F.data.startswith("buy_voucher:"))
 async def select_voucher(callback: CallbackQuery, state: FSMContext):
     voucher_id = int(callback.data.split(":")[1])
@@ -99,7 +94,6 @@ async def select_voucher(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-# ─── STEP 3: Select quantity ──────────────────────────────────────────────────
 @router.callback_query(F.data.startswith("qty:"))
 async def select_quantity(callback: CallbackQuery, state: FSMContext):
     parts = callback.data.split(":")
@@ -155,7 +149,6 @@ async def select_quantity(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-# ─── STEP 3b: Custom quantity ─────────────────────────────────────────────────
 @router.message(BuyStates.custom_quantity)
 async def handle_custom_quantity(message: Message, state: FSMContext):
     if message.text and message.text.strip() == "❌ Cancel":
@@ -196,7 +189,6 @@ async def handle_custom_quantity(message: Message, state: FSMContext):
     )
 
 
-# ─── STEP 4: Generate order + QR ─────────────────────────────────────────────
 async def _send_payment_qr(
     bot: Bot,
     chat_id: int,
@@ -247,7 +239,6 @@ async def _send_payment_qr(
     asyncio.create_task(_expiry_notify(bot, user_id, order_id))
 
 
-# ─── Expiry notification ──────────────────────────────────────────────────────
 async def _expiry_notify(bot: Bot, user_id: int, order_id: str):
     await asyncio.sleep(ORDER_EXPIRY_MINUTES * 60)
     order = get_order_by_id(order_id)
@@ -267,7 +258,6 @@ async def _expiry_notify(bot: Bot, user_id: int, order_id: str):
         pass
 
 
-# ─── "I Have Paid" button ─────────────────────────────────────────────────────
 @router.callback_query(F.data.startswith("i_paid:"))
 async def i_paid_callback(callback: CallbackQuery, state: FSMContext):
     order_id = callback.data.split(":")[1]
@@ -279,13 +269,9 @@ async def i_paid_callback(callback: CallbackQuery, state: FSMContext):
 
     status = order["status"]
 
-    # ── ALREADY APPROVED: return the same codes (no new delivery) ─────────────
     if status == "approved":
-        # Fetch already-delivered codes from DB (no new codes assigned)
         codes = get_order_codes(order_id)
-        if codes:
-            from utils.messages import get_setting
-        support = "Contact support"
+        support = "@admin"
         try:
             from utils.db_helpers import get_setting as _gs
             support = _gs("support_username") or "@admin"
@@ -334,17 +320,13 @@ async def i_paid_callback(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ This order was rejected. Contact support.", show_alert=True)
         return
 
-    # Still pending — payment not yet detected
     unique_amount = order.get("unique_amount") or order["total_price"]
     await callback.answer(
-        f"⏳ Payment not detected yet!\n\n"
-        f"Pay EXACTLY ₹{unique_amount:.2f}\n"
-        f"Then tap this button again.",
+        f"⏳ Payment not detected yet!\n\nPay EXACTLY ₹{unique_amount:.2f}\nThen tap this button again.",
         show_alert=True
     )
 
 
-# ─── Cancel order ─────────────────────────────────────────────────────────────
 @router.callback_query(F.data.startswith("cancel_order:"))
 async def cancel_order_cb(callback: CallbackQuery, state: FSMContext):
     order_id = callback.data.split(":")[1]
@@ -364,7 +346,6 @@ async def cancel_order_cb(callback: CallbackQuery, state: FSMContext):
     await callback.answer("Order cancelled.")
 
 
-# ─── Back to vouchers ─────────────────────────────────────────────────────────
 @router.callback_query(F.data == "back_vouchers")
 async def back_to_vouchers(callback: CallbackQuery, state: FSMContext):
     vouchers = get_all_vouchers_with_stock()
