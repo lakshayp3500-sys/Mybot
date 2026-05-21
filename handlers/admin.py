@@ -21,7 +21,8 @@ from utils.db_helpers import (
     get_all_channels, add_channel, remove_channel,
     get_stats, get_all_users, get_pending_orders,
     get_low_stock_vouchers, get_out_of_stock_vouchers, get_order_codes,
-    get_voucher_disclaimer, set_voucher_disclaimer
+    get_voucher_disclaimer, set_voucher_disclaimer,
+    is_maintenance, set_maintenance
 )
 from utils.messages import (
     admin_sale_receipt, admin_manual_sale_receipt, DIVIDER
@@ -761,6 +762,74 @@ async def broadcast_send(message: Message, state: FSMContext, bot: Bot):
     )
     await message.answer("Done.", reply_markup=admin_menu())
     await state.clear()
+
+
+# ─── MAINTENANCE MODE ─────────────────────────────────────────────────────────
+@router.message(F.text == "🔧 Maintenance")
+async def maintenance_toggle(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+    current = is_maintenance()
+    status_text = "🔴 ON (Bot is closed for users)" if current else "🟢 OFF (Bot is open)"
+    await message.answer(
+        f"🔧 <b>MAINTENANCE MODE</b>\n"
+        f"{DIVIDER}\n\n"
+        f"Current Status: <b>{status_text}</b>\n\n"
+        f"When ON — all users see maintenance message.\n"
+        f"You (admin) can still use the bot normally.\n\n"
+        f"{DIVIDER}\n"
+        f"Press button below to toggle:",
+        reply_markup=_maintenance_keyboard(current),
+        parse_mode="HTML"
+    )
+
+
+def _maintenance_keyboard(is_on: bool):
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    if is_on:
+        builder.button(text="✅ Turn OFF — Open Bot", callback_data="maintenance:off")
+    else:
+        builder.button(text="🔴 Turn ON — Close Bot", callback_data="maintenance:on")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+@router.callback_query(F.data.startswith("maintenance:"))
+async def maintenance_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Access Denied!", show_alert=True)
+        return
+    action = callback.data.split(":")[1]
+    if action == "on":
+        set_maintenance(True)
+        await callback.message.edit_text(
+            f"🔧 <b>MAINTENANCE MODE</b>\n"
+            f"{DIVIDER}\n\n"
+            f"Current Status: <b>🔴 ON (Bot is closed for users)</b>\n\n"
+            f"✅ <b>Maintenance ON kar diya!</b>\n"
+            f"Users ko ab maintenance message aayega.\n"
+            f"Aap (admin) normally use kar sakte ho.\n\n"
+            f"{DIVIDER}\n"
+            f"Press button below to toggle:",
+            reply_markup=_maintenance_keyboard(True),
+            parse_mode="HTML"
+        )
+        await callback.answer("🔴 Maintenance ON!", show_alert=True)
+    else:
+        set_maintenance(False)
+        await callback.message.edit_text(
+            f"🔧 <b>MAINTENANCE MODE</b>\n"
+            f"{DIVIDER}\n\n"
+            f"Current Status: <b>🟢 OFF (Bot is open)</b>\n\n"
+            f"✅ <b>Maintenance OFF kar diya!</b>\n"
+            f"Bot ab sabke liye open hai.\n\n"
+            f"{DIVIDER}\n"
+            f"Press button below to toggle:",
+            reply_markup=_maintenance_keyboard(False),
+            parse_mode="HTML"
+        )
+        await callback.answer("🟢 Maintenance OFF!", show_alert=True)
 
 
 # ─── SUPPORT SETTINGS ─────────────────────────────────────────────────────────
