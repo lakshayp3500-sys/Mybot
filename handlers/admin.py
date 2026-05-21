@@ -60,10 +60,6 @@ async def admin_panel(message: Message):
 # ─── SMS AUTO-VERIFY (/pay command) ───────────────────────────────────────────
 @router.message(Command("pay"))
 async def pay_via_sms(message: Message, command: CommandObject, bot: Bot):
-    """
-    Admin forwards bank SMS: /pay <sms text>
-    Bot extracts amount, matches pending order, delivers codes.
-    """
     if not is_admin(message.from_user.id):
         return
     if not command.args:
@@ -75,14 +71,11 @@ async def pay_via_sms(message: Message, command: CommandObject, bot: Bot):
             parse_mode="HTML"
         )
         return
-
-    sms_text = command.args.strip()
-    await _process_sms(message, bot, sms_text)
+    await _process_sms(message, bot, command.args.strip())
 
 
 @router.message(Command("sms"))
 async def sms_alias(message: Message, command: CommandObject, bot: Bot):
-    """Alias for /pay"""
     if not is_admin(message.from_user.id):
         return
     if not command.args:
@@ -92,7 +85,6 @@ async def sms_alias(message: Message, command: CommandObject, bot: Bot):
 
 
 async def _process_sms(message: Message, bot: Bot, sms_text: str):
-    """Core SMS processing + auto-delivery logic."""
     processing = await message.answer("🔄 <b>Processing payment...</b>", parse_mode="HTML")
 
     order = verify_payment(sms_text)
@@ -140,7 +132,6 @@ async def _process_sms(message: Message, bot: Bot, sms_text: str):
     elif remaining <= 5:
         stock_note = f"\n\n⚠️ Low stock: only <b>{remaining}</b> codes left!"
 
-    # Fetch user info for receipt
     try:
         from utils.db_helpers import get_user
         user_info = get_user(order["user_id"]) or {}
@@ -158,7 +149,6 @@ async def _process_sms(message: Message, bot: Bot, sms_text: str):
         order_id=order_id,
         codes=codes
     )
-
     await processing.edit_text(receipt + stock_note, parse_mode="HTML")
 
 
@@ -171,11 +161,10 @@ async def live_orders(message: Message):
     orders = get_pending_orders()
     now = datetime.now()
 
-    # Filter out already-expired ones
     active = []
     for o in orders:
         try:
-            expiry = datetime.fromisoformat(o["expiry_at"])
+            expiry = datetime.fromisoformat(str(o["expiry_at"]))
             if expiry > now:
                 remaining_secs = int((expiry - now).total_seconds())
                 o["_remaining"] = remaining_secs
@@ -187,18 +176,17 @@ async def live_orders(message: Message):
         await message.answer(
             f"📡 <b>LIVE ORDERS</b>\n"
             f"{DIVIDER}\n\n"
-            f"✅ No active pending orders right now.\n"
-            f"All orders are settled.",
+            f"✅ No active pending orders right now.",
             parse_mode="HTML"
         )
         return
 
-    header = (
+    await message.answer(
         f"📡 <b>LIVE ORDERS</b>\n"
         f"{DIVIDER}\n\n"
-        f"🔴 <b>{len(active)}</b> order(s) waiting for payment:\n"
+        f"🔴 <b>{len(active)}</b> order(s) waiting for payment:",
+        parse_mode="HTML"
     )
-    await message.answer(header, parse_mode="HTML")
 
     for o in active:
         remaining = o["_remaining"]
@@ -213,14 +201,9 @@ async def live_orders(message: Message):
             f"🎁 <b>{o['voucher_name']}</b> × {o['quantity']}\n"
             f"💳 Pay: <b>₹{unique_amount:.2f}</b>\n"
             f"⏱ Expires in: <b>{mins:02d}m {secs:02d}s</b>\n"
-            f"📌 Status: Waiting Payment\n"
             f"🆔 <code>#{o['id']}</code>"
         )
-        await message.answer(
-            text,
-            reply_markup=admin_approve_keyboard(o["id"]),
-            parse_mode="HTML"
-        )
+        await message.answer(text, reply_markup=admin_approve_keyboard(o["id"]), parse_mode="HTML")
 
 
 # ─── PENDING ORDERS ───────────────────────────────────────────────────────────
@@ -230,10 +213,7 @@ async def pending_orders_btn(message: Message):
         return
     orders = get_pending_orders()
     if not orders:
-        await message.answer(
-            f"✅ <b>No Pending Orders</b>\n\nAll orders are settled.",
-            parse_mode="HTML"
-        )
+        await message.answer("✅ <b>No Pending Orders</b>", parse_mode="HTML")
         return
 
     await message.answer(
@@ -249,17 +229,12 @@ async def pending_orders_btn(message: Message):
             f"{DIVIDER}\n\n"
             f"🆔 <code>#{order['id']}</code>\n"
             f"👤 {order['full_name']} (@{order.get('username') or 'N/A'})\n"
-            f"🆔 User: <code>{order['user_id']}</code>\n"
             f"🎁 {order['voucher_name']} × {order['quantity']}\n"
             f"💵 Base: ₹{order['total_price']:.0f}\n"
             f"🎯 Unique: <b>₹{unique_amount:.2f}</b>\n"
-            f"📅 {order['created_at'][:16]}"
+            f"📅 {str(order['created_at'])[:16]}"
         )
-        await message.answer(
-            text,
-            reply_markup=admin_approve_keyboard(order["id"]),
-            parse_mode="HTML"
-        )
+        await message.answer(text, reply_markup=admin_approve_keyboard(order["id"]), parse_mode="HTML")
 
 
 # ─── MANUAL APPROVE ───────────────────────────────────────────────────────────
@@ -282,7 +257,6 @@ async def approve_order(callback: CallbackQuery, bot: Bot):
         await callback.answer("❌ Not enough stock to deliver!", show_alert=True)
         return
 
-    # Notify buyer with premium message
     support = get_setting("support_username") or "@admin"
     from utils.messages import success_delivery_msg
     unique_amount = order.get("unique_amount") or order["total_price"]
@@ -298,17 +272,12 @@ async def approve_order(callback: CallbackQuery, bot: Bot):
     except Exception:
         pass
 
-    # Update admin message
     try:
-        edit_text = (callback.message.caption or callback.message.text or "") + "\n\n✅ <b>APPROVED & DELIVERED</b>"
-        if callback.message.caption:
-            await callback.message.edit_caption(edit_text, reply_markup=None, parse_mode="HTML")
-        else:
-            await callback.message.edit_text(edit_text, reply_markup=None, parse_mode="HTML")
+        edit_text = (callback.message.text or "") + "\n\n✅ <b>APPROVED & DELIVERED</b>"
+        await callback.message.edit_text(edit_text, reply_markup=None, parse_mode="HTML")
     except Exception:
         pass
 
-    # Send admin receipt
     try:
         from utils.db_helpers import get_user
         user_info = get_user(order["user_id"]) or {}
@@ -379,71 +348,19 @@ async def reject_order_reason(message: Message, state: FSMContext, bot: Bot):
             f"❌ <b>ORDER REJECTED</b>\n"
             f"{DIVIDER}\n\n"
             f"🆔 Order: <code>#{order_id}</code>\n"
-            f"🎁 {order['voucher_name']} × {order['quantity']}\n"
-            f"💵 ₹{order['total_price']:.0f}\n\n"
+            f"🎁 {order['voucher_name']} × {order['quantity']}\n\n"
             f"📝 <b>Reason:</b> {reason}\n\n"
-            f"If you believe this is a mistake, contact support.",
+            f"Contact support if you believe this is a mistake.",
             parse_mode="HTML"
         )
     except Exception:
         pass
 
     await message.answer(
-        f"❌ <b>Order Rejected</b>\n\n"
-        f"🆔 <code>#{order_id}</code> rejected. User has been notified.",
+        f"❌ <b>Order Rejected</b>\n\n<code>#{order_id}</code> rejected. User notified.",
         parse_mode="HTML",
         reply_markup=admin_menu()
     )
-    await state.clear()
-
-
-# ─── BROADCAST ────────────────────────────────────────────────────────────────
-@router.message(F.text == "📢 Broadcast")
-async def broadcast_start(message: Message, state: FSMContext):
-    if not is_admin(message.from_user.id):
-        return
-    await message.answer(
-        f"📢 <b>BROADCAST</b>\n"
-        f"{DIVIDER}\n\n"
-        f"Enter message to send to all users.\n"
-        f"<i>(HTML formatting supported: &lt;b&gt;, &lt;i&gt;, &lt;code&gt;)</i>",
-        reply_markup=cancel_keyboard(),
-        parse_mode="HTML"
-    )
-    await state.set_state(AdminStates.broadcast_message)
-
-
-@router.message(AdminStates.broadcast_message)
-async def broadcast_send(message: Message, state: FSMContext, bot: Bot):
-    if message.text == "❌ Cancel":
-        await state.clear()
-        await message.answer("Cancelled.", reply_markup=admin_menu())
-        return
-    users = get_all_users()
-    sent = failed = 0
-    status_msg = await message.answer(
-        f"📤 <b>Sending to {len(users)} users...</b>",
-        parse_mode="HTML"
-    )
-    for uid in users:
-        try:
-            await bot.send_message(
-                uid,
-                f"📢 <b>ANNOUNCEMENT</b>\n"
-                f"{DIVIDER}\n\n"
-                f"{message.text}",
-                parse_mode="HTML"
-            )
-            sent += 1
-        except Exception:
-            failed += 1
-    await status_msg.edit_text(
-        f"✅ <b>Broadcast Complete!</b>\n\n"
-        f"✓ Sent: {sent}\n"
-        f"✗ Failed: {failed}",
-        parse_mode="HTML"
-    )
-    await message.answer("Done.", reply_markup=admin_menu())
     await state.clear()
 
 
@@ -468,11 +385,11 @@ async def view_statistics(message: Message):
         f"   💵 Earnings: <b>₹{stats['today_earnings']:.0f}</b>"
     )
     if low_stock:
-        lines = [f"   ⚠️ {v['name']}: {v['stock']} left" for v in low_stock]
-        text += "\n\n🟡 <b>LOW STOCK ALERTS:</b>\n" + "\n".join(lines)
+        names = ", ".join([v["name"] for v in low_stock])
+        text += f"\n\n⚠️ <b>Low Stock:</b> {names}"
     if out_of_stock:
-        names = [f"   ❌ {v['name']}" for v in out_of_stock]
-        text += "\n\n🔴 <b>OUT OF STOCK:</b>\n" + "\n".join(names)
+        names = ", ".join([v["name"] for v in out_of_stock])
+        text += f"\n\n🚨 <b>Out of Stock:</b> {names}"
 
     await message.answer(text, parse_mode="HTML")
 
@@ -496,8 +413,7 @@ async def view_stock(message: Message):
             lines.append(f"🟢 {v['name']} — {v['stock']} codes (₹{v['price']:.0f})")
 
     await message.answer(
-        f"📦 <b>CURRENT STOCK</b>\n"
-        f"{DIVIDER}\n\n" + "\n".join(lines),
+        f"📦 <b>CURRENT STOCK</b>\n{DIVIDER}\n\n" + "\n".join(lines),
         parse_mode="HTML"
     )
 
@@ -559,10 +475,9 @@ async def delete_voucher_start(message: Message, state: FSMContext):
         return
     lines = [f"<b>{v['id']}</b>. {v['name']} ({v['stock']} codes)" for v in vouchers]
     await message.answer(
-        f"🗑 <b>DELETE VOUCHER</b>\n"
-        f"{DIVIDER}\n\n"
-        + "\n".join(lines) +
-        "\n\nSend the voucher <b>ID number</b> to delete it:",
+        f"🗑 <b>DELETE VOUCHER</b>\n{DIVIDER}\n\n"
+        + "\n".join(lines)
+        + "\n\nSend the voucher <b>ID number</b> to delete it:",
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
     await state.set_state(AdminStates.remove_voucher)
@@ -718,6 +633,43 @@ async def remove_codes_start(message: Message, state: FSMContext):
     await state.set_state(AdminStates.remove_voucher)
 
 
+# ─── BROADCAST ────────────────────────────────────────────────────────────────
+@router.message(F.text == "📢 Broadcast")
+async def broadcast_start(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    await message.answer(
+        f"📢 <b>BROADCAST</b>\n{DIVIDER}\n\n"
+        f"Enter message to send to all users.\n"
+        f"<i>(HTML supported: &lt;b&gt;, &lt;i&gt;, &lt;code&gt;)</i>",
+        reply_markup=cancel_keyboard(), parse_mode="HTML"
+    )
+    await state.set_state(AdminStates.broadcast_message)
+
+
+@router.message(AdminStates.broadcast_message)
+async def broadcast_send(message: Message, state: FSMContext, bot: Bot):
+    if message.text == "❌ Cancel":
+        await state.clear()
+        await message.answer("Cancelled.", reply_markup=admin_menu())
+        return
+    users = get_all_users()
+    sent = failed = 0
+    status_msg = await message.answer(f"📤 <b>Sending to {len(users)} users...</b>", parse_mode="HTML")
+    for uid in users:
+        try:
+            await bot.send_message(uid, f"📢 <b>ANNOUNCEMENT</b>\n{DIVIDER}\n\n{message.text}", parse_mode="HTML")
+            sent += 1
+        except Exception:
+            failed += 1
+    await status_msg.edit_text(
+        f"✅ <b>Broadcast Complete!</b>\n\n✓ Sent: {sent}\n✗ Failed: {failed}",
+        parse_mode="HTML"
+    )
+    await message.answer("Done.", reply_markup=admin_menu())
+    await state.clear()
+
+
 # ─── SUPPORT SETTINGS ─────────────────────────────────────────────────────────
 @router.message(F.text == "🆘 Support Settings")
 async def support_settings(message: Message, state: FSMContext):
@@ -725,8 +677,7 @@ async def support_settings(message: Message, state: FSMContext):
         return
     current = get_setting("support_username")
     await message.answer(
-        f"🆘 <b>SUPPORT SETTINGS</b>\n{DIVIDER}\n\n"
-        f"Current: <b>{current}</b>\n\n"
+        f"🆘 <b>SUPPORT SETTINGS</b>\n{DIVIDER}\n\nCurrent: <b>{current}</b>\n\n"
         f"Enter new support username (e.g. @yourusername):",
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
@@ -810,9 +761,9 @@ async def add_ch_link(message: Message, state: FSMContext):
     await state.clear()
 
 
-# ─── EXPIRE ORDERS — Manual trigger ──────────────────────────────────────────
+# ─── EXPIRE ORDERS — Manual ───────────────────────────────────────────────────
 @router.message(Command("expire"))
-async def manual_expire(message: Message, bot: Bot):
+async def manual_expire(message: Message):
     if not is_admin(message.from_user.id):
         return
     expired = expire_orders()
@@ -837,34 +788,26 @@ async def search_order(message: Message, command: CommandObject):
     order_id = command.args.strip().upper()
     order = get_order(order_id)
     if not order:
-        await message.answer(
-            f"❌ Order <code>#{order_id}</code> not found.",
-            parse_mode="HTML"
-        )
+        await message.answer(f"❌ Order <code>#{order_id}</code> not found.", parse_mode="HTML")
         return
 
     status_map = {
-        "pending":   "⏳ Pending",
-        "paid":      "💰 Payment Detected",
-        "approved":  "✅ Approved & Delivered",
-        "rejected":  "❌ Rejected",
-        "cancelled": "🚫 Cancelled",
-        "expired":   "⌛ Expired",
+        "pending": "⏳ Pending", "paid": "💰 Payment Detected",
+        "approved": "✅ Delivered", "rejected": "❌ Rejected",
+        "cancelled": "🚫 Cancelled", "expired": "⌛ Expired",
     }
-    status = status_map.get(order["status"], order["status"])
     unique_amount = order.get("unique_amount") or order["total_price"]
     codes = get_order_codes(order_id)
 
     text = (
-        f"🔍 <b>ORDER LOOKUP</b>\n"
-        f"{DIVIDER}\n\n"
+        f"🔍 <b>ORDER LOOKUP</b>\n{DIVIDER}\n\n"
         f"🆔 Order: <code>#{order['id']}</code>\n"
         f"👤 User: <code>{order['user_id']}</code>\n"
         f"🎁 {order['voucher_name']} × {order['quantity']}\n"
         f"💵 Base: ₹{order['total_price']:.0f}\n"
         f"🎯 Unique: ₹{unique_amount:.2f}\n"
-        f"📊 Status: {status}\n"
-        f"📅 Created: {order['created_at'][:16]}"
+        f"📊 Status: {status_map.get(order['status'], order['status'])}\n"
+        f"📅 Created: {str(order['created_at'])[:16]}"
     )
     if codes:
         codes_block = "\n".join([f"🔑 <code>{c}</code>" for c in codes])
