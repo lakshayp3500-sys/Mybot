@@ -69,8 +69,7 @@ async def back_orders(callback: CallbackQuery):
     orders = get_user_orders(callback.from_user.id)
     if not orders:
         await callback.message.edit_text(
-            f"📦 <b>MY ORDERS</b>\n\n"
-            f"No orders found.",
+            f"📦 <b>MY ORDERS</b>\n\nNo orders found.",
             parse_mode="HTML"
         )
         return
