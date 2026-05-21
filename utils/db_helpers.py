@@ -320,7 +320,10 @@ def get_setting(key: str) -> str:
 
 def set_setting(key: str, value: str):
     conn = get_conn()
-    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value",
+        (key, value)
+    )
     conn.commit()
     conn.close()
 

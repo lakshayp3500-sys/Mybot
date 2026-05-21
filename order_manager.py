@@ -26,22 +26,13 @@ def create_order(user_id, voucher_id, quantity, total_price, unique_amount, expi
 def is_amount_taken(amount: float) -> bool:
     now = datetime.now()
     conn = get_conn()
-    if IS_POSTGRES:
-        row = conn.execute("""
-            SELECT id FROM orders
-            WHERE ABS(unique_amount - ?) < 0.001
-              AND status = 'pending'
-              AND expiry_at > ?
-            LIMIT 1
-        """, (amount, now)).fetchone()
-    else:
-        row = conn.execute("""
-            SELECT id FROM orders
-            WHERE unique_amount = ?
-              AND status = 'pending'
-              AND expiry_at > ?
-            LIMIT 1
-        """, (amount, now)).fetchone()
+    row = conn.execute("""
+        SELECT id FROM orders
+        WHERE ABS(unique_amount - ?) < 0.001
+          AND status = 'pending'
+          AND expiry_at > ?
+        LIMIT 1
+    """, (amount, now)).fetchone()
     conn.close()
     return row is not None
 
@@ -49,28 +40,16 @@ def is_amount_taken(amount: float) -> bool:
 def get_pending_order_by_amount(amount: float) -> dict | None:
     now = datetime.now()
     conn = get_conn()
-    if IS_POSTGRES:
-        row = conn.execute("""
-            SELECT o.*, v.name as voucher_name, v.price as voucher_price
-            FROM orders o
-            JOIN vouchers v ON v.id = o.voucher_id
-            WHERE ABS(o.unique_amount - ?) < 0.001
-              AND o.status = 'pending'
-              AND o.expiry_at > ?
-            ORDER BY o.created_at DESC
-            LIMIT 1
-        """, (amount, now)).fetchone()
-    else:
-        row = conn.execute("""
-            SELECT o.*, v.name as voucher_name, v.price as voucher_price
-            FROM orders o
-            JOIN vouchers v ON v.id = o.voucher_id
-            WHERE o.unique_amount = ?
-              AND o.status = 'pending'
-              AND o.expiry_at > ?
-            ORDER BY o.created_at DESC
-            LIMIT 1
-        """, (amount, now)).fetchone()
+    row = conn.execute("""
+        SELECT o.*, v.name as voucher_name, v.price as voucher_price
+        FROM orders o
+        JOIN vouchers v ON v.id = o.voucher_id
+        WHERE ABS(o.unique_amount - ?) < 0.001
+          AND o.status = 'pending'
+          AND o.expiry_at > ?
+        ORDER BY o.created_at DESC
+        LIMIT 1
+    """, (amount, now)).fetchone()
     conn.close()
     return dict(row) if row else None
 

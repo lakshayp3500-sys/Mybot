@@ -80,12 +80,22 @@ async def sms_webhook(request: web.Request) -> web.Response:
     from utils.db_helpers import deliver_codes, get_voucher_stock, get_setting, get_user
     from utils.messages import success_delivery_msg, admin_sale_receipt
 
-    order = verify_payment(sms_text)
+    try:
+        order = verify_payment(sms_text)
+    except Exception as e:
+        logger.error(f"verify_payment error: {e}", exc_info=True)
+        return web.json_response({"status": "error", "error": str(e)}, status=500)
+
     if not order:
         return web.json_response({"status": "no_match"})
 
     order_id = order["id"]
-    codes = deliver_codes(order_id, order["voucher_id"], order["quantity"])
+
+    try:
+        codes = deliver_codes(order_id, order["voucher_id"], order["quantity"])
+    except Exception as e:
+        logger.error(f"deliver_codes error for order {order_id}: {e}", exc_info=True)
+        return web.json_response({"status": "error", "error": str(e)}, status=500)
 
     if codes is None:
         return web.json_response({"status": "error", "error": "Not enough stock"})
