@@ -1,6 +1,5 @@
 """
 handlers/start.py — Start, welcome, disclaimer, support, channels.
-Sends new-user alert to admin on first join.
 """
 
 from aiogram import Router, F, Bot
@@ -21,7 +20,6 @@ async def cmd_start(message: Message, bot: Bot):
     username = user.username or ""
     full_name = user.full_name or user.first_name or "User"
 
-    # Register user — returns True if brand new
     is_new = register_user(user.id, username, full_name)
 
     support = get_setting("support_username") or "@admin"
@@ -32,7 +30,6 @@ async def cmd_start(message: Message, bot: Bot):
         parse_mode="HTML"
     )
 
-    # Alert admins about new user
     if is_new:
         alert = new_user_alert(username, user.id, full_name)
         for admin_id in ADMIN_IDS:
@@ -78,8 +75,7 @@ async def our_channels(message: Message):
     channels = get_all_channels()
     if not channels:
         await message.answer(
-            "📢 No channels added yet.\n"
-            "Check back soon!",
+            "📢 No channels added yet.\nCheck back soon!",
             parse_mode="HTML"
         )
         return
