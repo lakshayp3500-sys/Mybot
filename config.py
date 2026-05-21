@@ -15,13 +15,10 @@ UPI_ID = os.getenv("UPI_ID", "yourname@upi")
 SHOP_NAME = os.getenv("SHOP_NAME", "MyShop")
 ORDER_EXPIRY_MINUTES = int(os.getenv("ORDER_EXPIRY_MINUTES", "5"))
 
-# SMS webhook port — Railway uses PORT env var, locally use 5001
-SMS_WEBHOOK_PORT = int(os.getenv("PORT", "5001"))
+SMS_WEBHOOK_PORT = int(os.getenv("BOT_PORT", "5001"))
 
-# Public URL for UPI redirect links
-# Priority: RAILWAY_PUBLIC_DOMAIN > REPLIT_DEV_DOMAIN > empty
-_railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
 _replit_domain = os.getenv("REPLIT_DEV_DOMAIN", "")
+_railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
 
 if _railway_domain:
     API_BASE_URL = f"https://{_railway_domain}"
