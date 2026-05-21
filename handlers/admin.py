@@ -20,7 +20,8 @@ from utils.db_helpers import (
     get_setting, set_setting,
     get_all_channels, add_channel, remove_channel,
     get_stats, get_all_users, get_pending_orders,
-    get_low_stock_vouchers, get_out_of_stock_vouchers, get_order_codes
+    get_low_stock_vouchers, get_out_of_stock_vouchers, get_order_codes,
+    get_voucher_disclaimer, set_voucher_disclaimer
 )
 from utils.messages import (
     admin_sale_receipt, admin_manual_sale_receipt, DIVIDER
@@ -557,6 +558,98 @@ async def set_price_value_h(message: Message, state: FSMContext):
         f"✅ Price updated to <b>₹{price:.0f}</b> for {data['voucher_name']}!",
         reply_markup=admin_menu(), parse_mode="HTML"
     )
+    await state.clear()
+
+
+# ─── SET DISCLAIMER ───────────────────────────────────────────────────────────
+@router.message(F.text == "📋 Set Disclaimer")
+async def set_disclaimer_start(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    vouchers = get_all_vouchers_with_stock()
+    if not vouchers:
+        await message.answer("⚠️ No vouchers found.", reply_markup=admin_menu())
+        return
+    lines = []
+    for v in vouchers:
+        disc = get_voucher_disclaimer(v["id"])
+        tag = " ✅" if disc else " ➖"
+        lines.append(f"<b>{v['id']}</b>. {v['name']}{tag}")
+    await message.answer(
+        f"📋 <b>SET DISCLAIMER</b>\n"
+        f"{DIVIDER}\n\n"
+        + "\n".join(lines)
+        + f"\n\n✅ = Disclaimer set  •  ➖ = Not set\n\n"
+        f"Send voucher <b>ID</b> to edit its disclaimer:",
+        reply_markup=cancel_keyboard(), parse_mode="HTML"
+    )
+    await state.set_state(AdminStates.set_disclaimer_voucher)
+
+
+@router.message(AdminStates.set_disclaimer_voucher)
+async def set_disclaimer_voucher_h(message: Message, state: FSMContext):
+    if message.text == "❌ Cancel":
+        await state.clear()
+        await message.answer("Cancelled.", reply_markup=admin_menu())
+        return
+    try:
+        vid = int(message.text.strip())
+    except ValueError:
+        await message.answer("⚠️ Enter a valid ID number!")
+        return
+    voucher = get_voucher(vid)
+    if not voucher:
+        await message.answer("❌ Voucher not found!")
+        return
+    existing = get_voucher_disclaimer(vid)
+    await state.update_data(disclaimer_voucher_id=vid, disclaimer_voucher_name=voucher["name"])
+
+    if existing:
+        preview = existing[:150] + ("..." if len(existing) > 150 else "")
+        existing_block = f"\n\n📋 <b>Current Disclaimer:</b>\n<i>{preview}</i>"
+    else:
+        existing_block = "\n\n<i>No disclaimer set for this voucher.</i>"
+
+    await message.answer(
+        f"📋 <b>Disclaimer for: {voucher['name']}</b>"
+        f"{existing_block}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"Type the new disclaimer text below.\n"
+        f"(Send <code>clear</code> to remove existing disclaimer)",
+        parse_mode="HTML"
+    )
+    await state.set_state(AdminStates.set_disclaimer_text)
+
+
+@router.message(AdminStates.set_disclaimer_text)
+async def set_disclaimer_text_h(message: Message, state: FSMContext):
+    if message.text == "❌ Cancel":
+        await state.clear()
+        await message.answer("Cancelled.", reply_markup=admin_menu())
+        return
+    data = await state.get_data()
+    vid = data["disclaimer_voucher_id"]
+    name = data["disclaimer_voucher_name"]
+
+    if message.text.strip().lower() == "clear":
+        set_voucher_disclaimer(vid, "")
+        await message.answer(
+            f"🗑 <b>Disclaimer Removed</b>\n\n"
+            f"No disclaimer will be shown for <b>{name}</b>.",
+            reply_markup=admin_menu(), parse_mode="HTML"
+        )
+    else:
+        set_voucher_disclaimer(vid, message.text.strip())
+        await message.answer(
+            f"✅ <b>Disclaimer Saved!</b>\n"
+            f"{DIVIDER}\n\n"
+            f"🎁 <b>Voucher:</b> {name}\n\n"
+            f"📋 <b>Disclaimer:</b>\n"
+            f"<i>{message.text.strip()[:200]}</i>\n\n"
+            f"{DIVIDER}\n"
+            f"Users will see this before paying for <b>{name}</b>.",
+            reply_markup=admin_menu(), parse_mode="HTML"
+        )
     await state.clear()
 
 
