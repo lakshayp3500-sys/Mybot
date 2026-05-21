@@ -2,7 +2,7 @@
 main.py — Bot entry point.
 
 Runs Telegram polling + aiohttp webhook server on port 5001.
-SMS auto-verify: POST /api/sms from SMS forwarder app.
+SMS auto-verify: POST /sms from SMS forwarder app.
 Admin command: /pay <SMS text>
 """
 
@@ -27,16 +27,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global bot instance (set in main())
 _bot: Bot | None = None
 
-# ─── Aiohttp SMS webhook handler ──────────────────────────────────────────────
 
 async def sms_webhook(request: web.Request) -> web.Response:
-    """
-    Receives forwarded SMS from Express /api/sms proxy.
-    Extracts payment amount, matches pending order, delivers codes.
-    """
     try:
         data = await request.json()
     except Exception:
@@ -69,7 +63,6 @@ async def sms_webhook(request: web.Request) -> web.Response:
     matched_amount = order.get("matched_amount", order.get("unique_amount", 0))
     support = get_setting("support_username") or "@admin"
 
-    # Notify user
     if _bot:
         user_msg = success_delivery_msg(
             voucher_name=order["voucher_name"],
@@ -83,7 +76,6 @@ async def sms_webhook(request: web.Request) -> web.Response:
         except Exception as e:
             logger.warning(f"Could not notify user {order['user_id']}: {e}")
 
-        # Notify admin with sale receipt
         try:
             user_info = get_user(order["user_id"]) or {}
             buyer_username = user_info.get("username", "N/A")
@@ -118,11 +110,7 @@ async def sms_webhook(request: web.Request) -> web.Response:
 
 
 async def upi_redirect(request: web.Request) -> web.Response:
-    """
-    GET /upi?pa=...&pn=...&am=...&cu=INR
-    Telegram buttons need HTTPS links — this bridges to the upi:// deep link.
-    Returns an HTML page that auto-redirects to the UPI app.
-    """
+    from urllib.parse import quote
     pa = request.rel_url.query.get("pa", "")
     pn = request.rel_url.query.get("pn", "")
     am = request.rel_url.query.get("am", "")
@@ -131,7 +119,6 @@ async def upi_redirect(request: web.Request) -> web.Response:
     if not pa or not am:
         return web.Response(status=400, text="Missing pa or am")
 
-    from urllib.parse import quote
     upi_link = f"upi://pay?pa={quote(pa)}&pn={quote(pn)}&am={am}&cu={cu}"
 
     html = f"""<!DOCTYPE html>
@@ -183,7 +170,6 @@ async def upi_redirect(request: web.Request) -> web.Response:
 
 
 async def start_webhook_server():
-    """Start aiohttp server on port 5001 for SMS webhook."""
     app = web.Application()
     app.router.add_post("/sms", sms_webhook)
     app.router.add_get("/upi", upi_redirect)
@@ -196,8 +182,6 @@ async def start_webhook_server():
     logger.info(f"SMS webhook server running on port {SMS_WEBHOOK_PORT}")
     return runner
 
-
-# ─── Background expiry loop ───────────────────────────────────────────────────
 
 async def _expiry_loop(bot: Bot):
     while True:
@@ -222,8 +206,6 @@ async def _expiry_loop(bot: Bot):
             logger.warning(f"Expiry loop error: {e}")
 
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
-
 async def main():
     global _bot
 
@@ -247,7 +229,6 @@ async def main():
 
     await _bot.delete_webhook(drop_pending_updates=True)
 
-    # Start SMS webhook server + background tasks
     runner = await start_webhook_server()
     asyncio.create_task(_expiry_loop(_bot))
 
