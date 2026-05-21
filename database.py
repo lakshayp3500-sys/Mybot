@@ -1,11 +1,5 @@
 """
 database.py — Unified DB connection for SQLite (local) and PostgreSQL (Railway).
-
-Auto-detects DATABASE_URL:
-  - If set   → uses psycopg2 (PostgreSQL) — permanent data
-  - If unset → uses sqlite3 (local dev only)
-
-All other code uses get_conn() — no changes needed there.
 """
 
 import os
@@ -17,10 +11,7 @@ DB_PATH = os.getenv("DB_PATH", "voucher_bot.db")
 IS_POSTGRES = bool(DATABASE_URL)
 
 
-# ─── Row wrapper ────────────────────────────────────────────────────────────
-
 class Row(dict):
-    """Dict that supports both key and attribute access (sqlite3.Row compatible)."""
     def __getattr__(self, key):
         try:
             return self[key]
@@ -28,10 +19,7 @@ class Row(dict):
             raise AttributeError(key)
 
 
-# ─── SQL transformer (SQLite → PostgreSQL) ──────────────────────────────────
-
 def _pg_sql(sql: str) -> str:
-    """Convert SQLite-flavoured SQL to PostgreSQL."""
     sql = re.sub(r'INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT', 'SERIAL PRIMARY KEY', sql, flags=re.IGNORECASE)
     sql = re.sub(r'\bINSERT\s+OR\s+IGNORE\s+INTO\b', 'INSERT INTO', sql, flags=re.IGNORECASE)
     sql = re.sub(r'\bINSERT\s+OR\s+REPLACE\s+INTO\b', 'INSERT INTO', sql, flags=re.IGNORECASE)
@@ -40,15 +28,7 @@ def _pg_sql(sql: str) -> str:
     return sql
 
 
-# ─── Unified Connection wrapper ─────────────────────────────────────────────
-
 class UnifiedConn:
-    """
-    Wraps either sqlite3 or psycopg2 connection.
-    Exposes execute / executemany / commit / close.
-    Always returns Row dicts.
-    """
-
     def __init__(self):
         if IS_POSTGRES:
             import psycopg2
@@ -59,8 +39,6 @@ class UnifiedConn:
             self._conn = sqlite3.connect(DB_PATH)
             self._conn.row_factory = sqlite3.Row
             self._backend = "sqlite"
-
-    # ── private helpers ──────────────────────────────────────────────────────
 
     def _cursor(self):
         if self._backend == "pg":
@@ -77,8 +55,6 @@ class UnifiedConn:
         if self._backend == "pg":
             return _pg_sql(sql), params or ()
         return sql, params or ()
-
-    # ── public API ───────────────────────────────────────────────────────────
 
     def execute(self, sql, params=None):
         sql, params = self._prep(sql, params)
@@ -110,8 +86,6 @@ class UnifiedConn:
 
 
 class _CursorResult:
-    """Wraps cursor to return Row objects from fetchone/fetchall."""
-
     def __init__(self, cur, backend):
         self._cur = cur
         self._backend = backend
@@ -126,8 +100,6 @@ class _CursorResult:
         rows = self._cur.fetchall()
         return [Row(dict(r)) for r in rows]
 
-
-# ─── Public API ──────────────────────────────────────────────────────────────
 
 def get_conn() -> UnifiedConn:
     return UnifiedConn()
@@ -204,7 +176,6 @@ def init_db():
         )
     """)
 
-    # Default settings — works in both SQLite and PostgreSQL
     conn.executemany(
         """INSERT INTO settings (key, value) VALUES (?, ?)
            ON CONFLICT(key) DO NOTHING""",
