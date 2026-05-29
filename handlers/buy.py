@@ -26,12 +26,9 @@ from config import ADMIN_IDS, UPI_ID, SHOP_NAME, ORDER_EXPIRY_MINUTES, API_BASE_
 
 router = Router()
 
-
 @router.message(F.text == "🛍 Buy Vouchers")
 async def buy_vouchers(message: Message, state: FSMContext):
     await state.clear()
-    await message.bot.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(0.8)
 
     active = get_user_active_order(message.from_user.id)
     if active:
@@ -66,7 +63,6 @@ async def buy_vouchers(message: Message, state: FSMContext):
     )
     await state.set_state(BuyStates.select_voucher)
 
-
 @router.callback_query(F.data.startswith("buy_voucher:"))
 async def select_voucher(callback: CallbackQuery, state: FSMContext):
     voucher_id = int(callback.data.split(":")[1])
@@ -95,7 +91,6 @@ async def select_voucher(callback: CallbackQuery, state: FSMContext):
     )
     await state.set_state(BuyStates.select_quantity)
     await callback.answer()
-
 
 @router.callback_query(F.data.startswith("qty:"))
 async def select_quantity(callback: CallbackQuery, state: FSMContext):
@@ -151,7 +146,6 @@ async def select_quantity(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-
 @router.message(BuyStates.custom_quantity)
 async def handle_custom_quantity(message: Message, state: FSMContext):
     if message.text and message.text.strip() == "❌ Cancel":
@@ -191,7 +185,6 @@ async def handle_custom_quantity(message: Message, state: FSMContext):
         total=total
     )
 
-
 async def _show_disclaimer_or_pay(
     bot: Bot,
     chat_id: int,
@@ -224,7 +217,6 @@ async def _show_disclaimer_or_pay(
     else:
         await _send_payment_qr(bot, chat_id, state, user_id, voucher_id, voucher_name, quantity, price, total)
 
-
 @router.callback_query(BuyStates.confirm_disclaimer, F.data == "disclaimer_accept")
 async def disclaimer_accept(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -245,7 +237,6 @@ async def disclaimer_accept(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-
 @router.callback_query(BuyStates.confirm_disclaimer, F.data == "disclaimer_cancel")
 async def disclaimer_cancel(callback: CallbackQuery, state: FSMContext):
     await state.clear()
@@ -259,7 +250,6 @@ async def disclaimer_cancel(callback: CallbackQuery, state: FSMContext):
         reply_markup=main_menu()
     )
     await callback.answer("Cancelled.")
-
 
 async def _send_payment_qr(
     bot: Bot,
@@ -310,9 +300,7 @@ async def _send_payment_qr(
     await state.set_state(BuyStates.waiting_payment)
     asyncio.create_task(_expiry_notify(bot, user_id, order_id))
 
-
 async def _expiry_notify(bot: Bot, user_id: int, order_id: str):
-    await asyncio.sleep(ORDER_EXPIRY_MINUTES * 60)
     order = get_order_by_id(order_id)
     if not order or order["status"] != "pending":
         return
@@ -328,7 +316,6 @@ async def _expiry_notify(bot: Bot, user_id: int, order_id: str):
         )
     except Exception:
         pass
-
 
 @router.callback_query(F.data.startswith("i_paid:"))
 async def i_paid_callback(callback: CallbackQuery, state: FSMContext):
@@ -398,7 +385,6 @@ async def i_paid_callback(callback: CallbackQuery, state: FSMContext):
         show_alert=True
     )
 
-
 @router.callback_query(F.data.startswith("cancel_order:"))
 async def cancel_order_cb(callback: CallbackQuery, state: FSMContext):
     order_id = callback.data.split(":")[1]
@@ -417,7 +403,6 @@ async def cancel_order_cb(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer("Order cancelled.")
 
-
 @router.callback_query(F.data == "back_vouchers")
 async def back_to_vouchers(callback: CallbackQuery, state: FSMContext):
     vouchers = get_all_vouchers_with_stock()
@@ -430,7 +415,6 @@ async def back_to_vouchers(callback: CallbackQuery, state: FSMContext):
     )
     await state.set_state(BuyStates.select_voucher)
     await callback.answer()
-
 
 @router.callback_query(F.data == "back_main")
 async def back_main(callback: CallbackQuery, state: FSMContext):
