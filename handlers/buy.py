@@ -5,7 +5,9 @@ handlers/buy.py — User purchase flow (UPI semi-auto payment).
 import asyncio
 import io
 
+import asyncio as _asyncio
 from aiogram import Router, F, Bot
+from aiogram.enums import ChatAction
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 
@@ -28,6 +30,8 @@ router = Router()
 
 @router.message(F.text == "🛍 Buy Vouchers")
 async def buy_vouchers(message: Message, state: FSMContext):
+    await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await _asyncio.sleep(0.4)
     await state.clear()
 
     active = get_user_active_order(message.from_user.id)
