@@ -9,15 +9,11 @@ from utils.db_helpers import get_user_orders, get_order, get_order_codes
 from utils.messages import order_detail_msg, DIVIDER
 from keyboards.reply import main_menu
 from keyboards.inline import orders_keyboard, order_detail_keyboard
-import asyncio
 
 router = Router()
 
-
 @router.message(F.text == "📦 My Orders")
 async def my_orders(message: Message):
-    await message.bot.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(0.8)
     orders = get_user_orders(message.from_user.id)
     if not orders:
         await message.answer(
@@ -44,7 +40,6 @@ async def my_orders(message: Message):
         reply_markup=orders_keyboard(orders),
         parse_mode="HTML"
     )
-
 
 @router.callback_query(F.data.startswith("view_order:"))
 async def view_order(callback: CallbackQuery):
