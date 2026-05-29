@@ -698,270 +698,270 @@ async def remove_codes_start(message: Message, state: FSMContext):
     )
     await state.set_state(AdminStates.remove_codes_voucher)
 
-  @router.message(AdminStates.remove_codes_voucher)
-  async def remove_codes_voucher_h(message: Message, state: FSMContext):
-      if message.text == "❌ Cancel":
-          await state.clear()
-          await message.answer("Cancelled.", reply_markup=admin_menu())
-          return
-      try:
-          vid = int(message.text.strip())
-      except ValueError:
-          await message.answer("⚠️ Enter a valid ID number!")
-          return
-      voucher = get_voucher(vid)
-      if not voucher:
-          await message.answer("❌ Voucher not found!")
-          return
-      remove_all_codes(vid)
-      await message.answer(
-          f"✅ <b>All unused codes removed!</b>\n\n"
-          f"🎁 {voucher['name']} — stock is now 0.",
-          reply_markup=admin_menu(), parse_mode="HTML"
-      )
-      await state.clear()
-
-  # ─── BROADCAST ────────────────────────────────────────────────────────────────
-@router.message(F.text == "📢 Broadcast")
-async def broadcast_start(message: Message, state: FSMContext):
-    if not is_admin(message.from_user.id):
-        return
-    await message.answer(
-        f"📢 <b>BROADCAST</b>\n{DIVIDER}\n\n"
-        f"Enter message to send to all users.\n"
-        f"<i>(HTML supported: &lt;b&gt;, &lt;i&gt;, &lt;code&gt;)</i>",
-        reply_markup=cancel_keyboard(), parse_mode="HTML"
-    )
-    await state.set_state(AdminStates.broadcast_message)
-
-@router.message(AdminStates.broadcast_message)
-async def broadcast_send(message: Message, state: FSMContext, bot: Bot):
+@router.message(AdminStates.remove_codes_voucher)
+async def remove_codes_voucher_h(message: Message, state: FSMContext):
     if message.text == "❌ Cancel":
         await state.clear()
         await message.answer("Cancelled.", reply_markup=admin_menu())
         return
-    users = get_all_users()
-    sent = failed = 0
-    status_msg = await message.answer(f"📤 <b>Sending to {len(users)} users...</b>", parse_mode="HTML")
-    for uid in users:
-        try:
-            await bot.send_message(uid, f"📢 <b>ANNOUNCEMENT</b>\n{DIVIDER}\n\n{message.text}", parse_mode="HTML")
-            sent += 1
-        except Exception:
-            failed += 1
-    await status_msg.edit_text(
-        f"✅ <b>Broadcast Complete!</b>\n\n✓ Sent: {sent}\n✗ Failed: {failed}",
-        parse_mode="HTML"
+    try:
+        vid = int(message.text.strip())
+    except ValueError:
+        await message.answer("⚠️ Enter a valid ID number!")
+        return
+    voucher = get_voucher(vid)
+    if not voucher:
+        await message.answer("❌ Voucher not found!")
+        return
+    remove_all_codes(vid)
+    await message.answer(
+        f"✅ <b>All unused codes removed!</b>\n\n"
+        f"🎁 {voucher['name']} — stock is now 0.",
+        reply_markup=admin_menu(), parse_mode="HTML"
     )
-    await message.answer("Done.", reply_markup=admin_menu())
     await state.clear()
+
+# ─── BROADCAST ────────────────────────────────────────────────────────────────
+@router.message(F.text == "📢 Broadcast")
+async def broadcast_start(message: Message, state: FSMContext):
+  if not is_admin(message.from_user.id):
+      return
+  await message.answer(
+      f"📢 <b>BROADCAST</b>\n{DIVIDER}\n\n"
+      f"Enter message to send to all users.\n"
+      f"<i>(HTML supported: &lt;b&gt;, &lt;i&gt;, &lt;code&gt;)</i>",
+      reply_markup=cancel_keyboard(), parse_mode="HTML"
+  )
+  await state.set_state(AdminStates.broadcast_message)
+
+@router.message(AdminStates.broadcast_message)
+async def broadcast_send(message: Message, state: FSMContext, bot: Bot):
+  if message.text == "❌ Cancel":
+      await state.clear()
+      await message.answer("Cancelled.", reply_markup=admin_menu())
+      return
+  users = get_all_users()
+  sent = failed = 0
+  status_msg = await message.answer(f"📤 <b>Sending to {len(users)} users...</b>", parse_mode="HTML")
+  for uid in users:
+      try:
+          await bot.send_message(uid, f"📢 <b>ANNOUNCEMENT</b>\n{DIVIDER}\n\n{message.text}", parse_mode="HTML")
+          sent += 1
+      except Exception:
+          failed += 1
+  await status_msg.edit_text(
+      f"✅ <b>Broadcast Complete!</b>\n\n✓ Sent: {sent}\n✗ Failed: {failed}",
+      parse_mode="HTML"
+  )
+  await message.answer("Done.", reply_markup=admin_menu())
+  await state.clear()
 
 # ─── MAINTENANCE MODE ─────────────────────────────────────────────────────────
 @router.message(F.text == "🔧 Maintenance")
 async def maintenance_toggle(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-    current = is_maintenance()
-    status_text = "🔴 ON (Bot is closed for users)" if current else "🟢 OFF (Bot is open)"
-    await message.answer(
-        f"🔧 <b>MAINTENANCE MODE</b>\n"
-        f"{DIVIDER}\n\n"
-        f"Current Status: <b>{status_text}</b>\n\n"
-        f"When ON — all users see maintenance message.\n"
-        f"You (admin) can still use the bot normally.\n\n"
-        f"{DIVIDER}\n"
-        f"Press button below to toggle:",
-        reply_markup=_maintenance_keyboard(current),
-        parse_mode="HTML"
-    )
+  if not is_admin(message.from_user.id):
+      return
+  current = is_maintenance()
+  status_text = "🔴 ON (Bot is closed for users)" if current else "🟢 OFF (Bot is open)"
+  await message.answer(
+      f"🔧 <b>MAINTENANCE MODE</b>\n"
+      f"{DIVIDER}\n\n"
+      f"Current Status: <b>{status_text}</b>\n\n"
+      f"When ON — all users see maintenance message.\n"
+      f"You (admin) can still use the bot normally.\n\n"
+      f"{DIVIDER}\n"
+      f"Press button below to toggle:",
+      reply_markup=_maintenance_keyboard(current),
+      parse_mode="HTML"
+  )
 
 def _maintenance_keyboard(is_on: bool):
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    builder = InlineKeyboardBuilder()
-    if is_on:
-        builder.button(text="✅ Turn OFF — Open Bot", callback_data="maintenance:off")
-    else:
-        builder.button(text="🔴 Turn ON — Close Bot", callback_data="maintenance:on")
-    builder.adjust(1)
-    return builder.as_markup()
+  from aiogram.utils.keyboard import InlineKeyboardBuilder
+  builder = InlineKeyboardBuilder()
+  if is_on:
+      builder.button(text="✅ Turn OFF — Open Bot", callback_data="maintenance:off")
+  else:
+      builder.button(text="🔴 Turn ON — Close Bot", callback_data="maintenance:on")
+  builder.adjust(1)
+  return builder.as_markup()
 
 @router.callback_query(F.data.startswith("maintenance:"))
 async def maintenance_callback(callback: CallbackQuery):
-    if not is_admin(callback.from_user.id):
-        await callback.answer("Access Denied!", show_alert=True)
-        return
-    action = callback.data.split(":")[1]
-    if action == "on":
-        set_maintenance(True)
-        await callback.message.edit_text(
-            f"🔧 <b>MAINTENANCE MODE</b>\n"
-            f"{DIVIDER}\n\n"
-            f"Current Status: <b>🔴 ON (Bot is closed for users)</b>\n\n"
-            f"✅ <b>Maintenance ON kar diya!</b>\n"
-            f"Users ko ab maintenance message aayega.\n"
-            f"Aap (admin) normally use kar sakte ho.\n\n"
-            f"{DIVIDER}\n"
-            f"Press button below to toggle:",
-            reply_markup=_maintenance_keyboard(True),
-            parse_mode="HTML"
-        )
-        await callback.answer("🔴 Maintenance ON!", show_alert=True)
-    else:
-        set_maintenance(False)
-        await callback.message.edit_text(
-            f"🔧 <b>MAINTENANCE MODE</b>\n"
-            f"{DIVIDER}\n\n"
-            f"Current Status: <b>🟢 OFF (Bot is open)</b>\n\n"
-            f"✅ <b>Maintenance OFF kar diya!</b>\n"
-            f"Bot ab sabke liye open hai.\n\n"
-            f"{DIVIDER}\n"
-            f"Press button below to toggle:",
-            reply_markup=_maintenance_keyboard(False),
-            parse_mode="HTML"
-        )
-        await callback.answer("🟢 Maintenance OFF!", show_alert=True)
+  if not is_admin(callback.from_user.id):
+      await callback.answer("Access Denied!", show_alert=True)
+      return
+  action = callback.data.split(":")[1]
+  if action == "on":
+      set_maintenance(True)
+      await callback.message.edit_text(
+          f"🔧 <b>MAINTENANCE MODE</b>\n"
+          f"{DIVIDER}\n\n"
+          f"Current Status: <b>🔴 ON (Bot is closed for users)</b>\n\n"
+          f"✅ <b>Maintenance ON kar diya!</b>\n"
+          f"Users ko ab maintenance message aayega.\n"
+          f"Aap (admin) normally use kar sakte ho.\n\n"
+          f"{DIVIDER}\n"
+          f"Press button below to toggle:",
+          reply_markup=_maintenance_keyboard(True),
+          parse_mode="HTML"
+      )
+      await callback.answer("🔴 Maintenance ON!", show_alert=True)
+  else:
+      set_maintenance(False)
+      await callback.message.edit_text(
+          f"🔧 <b>MAINTENANCE MODE</b>\n"
+          f"{DIVIDER}\n\n"
+          f"Current Status: <b>🟢 OFF (Bot is open)</b>\n\n"
+          f"✅ <b>Maintenance OFF kar diya!</b>\n"
+          f"Bot ab sabke liye open hai.\n\n"
+          f"{DIVIDER}\n"
+          f"Press button below to toggle:",
+          reply_markup=_maintenance_keyboard(False),
+          parse_mode="HTML"
+      )
+      await callback.answer("🟢 Maintenance OFF!", show_alert=True)
 
 # ─── SUPPORT SETTINGS ─────────────────────────────────────────────────────────
 @router.message(F.text == "🆘 Support Settings")
 async def support_settings(message: Message, state: FSMContext):
-    if not is_admin(message.from_user.id):
-        return
-    current = get_setting("support_username")
-    await message.answer(
-        f"🆘 <b>SUPPORT SETTINGS</b>\n{DIVIDER}\n\nCurrent: <b>{current}</b>\n\n"
-        f"Enter new support username (e.g. @yourusername):",
-        reply_markup=cancel_keyboard(), parse_mode="HTML"
-    )
-    await state.set_state(AdminStates.set_support)
+  if not is_admin(message.from_user.id):
+      return
+  current = get_setting("support_username")
+  await message.answer(
+      f"🆘 <b>SUPPORT SETTINGS</b>\n{DIVIDER}\n\nCurrent: <b>{current}</b>\n\n"
+      f"Enter new support username (e.g. @yourusername):",
+      reply_markup=cancel_keyboard(), parse_mode="HTML"
+  )
+  await state.set_state(AdminStates.set_support)
 
 @router.message(AdminStates.set_support)
 async def set_support_h(message: Message, state: FSMContext):
-    if message.text == "❌ Cancel":
-        await state.clear()
-        await message.answer("Cancelled.", reply_markup=admin_menu())
-        return
-    set_setting("support_username", message.text.strip())
-    await message.answer(
-        f"✅ Support updated to <b>{message.text.strip()}</b>!",
-        reply_markup=admin_menu(), parse_mode="HTML"
-    )
-    await state.clear()
+  if message.text == "❌ Cancel":
+      await state.clear()
+      await message.answer("Cancelled.", reply_markup=admin_menu())
+      return
+  set_setting("support_username", message.text.strip())
+  await message.answer(
+      f"✅ Support updated to <b>{message.text.strip()}</b>!",
+      reply_markup=admin_menu(), parse_mode="HTML"
+  )
+  await state.clear()
 
 # ─── MANAGE CHANNELS ──────────────────────────────────────────────────────────
 @router.message(F.text == "📢 Manage Channels")
 async def manage_channels(message: Message, state: FSMContext):
-    if not is_admin(message.from_user.id):
-        return
-    channels = get_all_channels()
-    lines = (
-        [f"<b>{ch['id']}</b>. {ch['name']} — {ch['link']}" for ch in channels]
-        or ["No channels yet."]
-    )
-    await message.answer(
-        f"📢 <b>MANAGE CHANNELS</b>\n{DIVIDER}\n\n" + "\n".join(lines) +
-        "\n\nType <b>add</b> to add new, or send channel <b>ID</b> to remove:",
-        reply_markup=cancel_keyboard(), parse_mode="HTML"
-    )
-    await state.set_state(AdminStates.remove_channel)
+  if not is_admin(message.from_user.id):
+      return
+  channels = get_all_channels()
+  lines = (
+      [f"<b>{ch['id']}</b>. {ch['name']} — {ch['link']}" for ch in channels]
+      or ["No channels yet."]
+  )
+  await message.answer(
+      f"📢 <b>MANAGE CHANNELS</b>\n{DIVIDER}\n\n" + "\n".join(lines) +
+      "\n\nType <b>add</b> to add new, or send channel <b>ID</b> to remove:",
+      reply_markup=cancel_keyboard(), parse_mode="HTML"
+  )
+  await state.set_state(AdminStates.remove_channel)
 
 @router.message(AdminStates.remove_channel)
 async def channels_action(message: Message, state: FSMContext):
-    if message.text == "❌ Cancel":
-        await state.clear()
-        await message.answer("Done.", reply_markup=admin_menu())
-        return
-    if message.text.lower() == "add":
-        await message.answer("Enter channel name:")
-        await state.set_state(AdminStates.add_channel_name)
-        return
-    try:
-        cid = int(message.text.strip())
-        remove_channel(cid)
-        await message.answer("✅ Channel removed!", reply_markup=admin_menu())
-        await state.clear()
-    except ValueError:
-        await message.answer("⚠️ Enter a valid channel ID or 'add'.")
+  if message.text == "❌ Cancel":
+      await state.clear()
+      await message.answer("Done.", reply_markup=admin_menu())
+      return
+  if message.text.lower() == "add":
+      await message.answer("Enter channel name:")
+      await state.set_state(AdminStates.add_channel_name)
+      return
+  try:
+      cid = int(message.text.strip())
+      remove_channel(cid)
+      await message.answer("✅ Channel removed!", reply_markup=admin_menu())
+      await state.clear()
+  except ValueError:
+      await message.answer("⚠️ Enter a valid channel ID or 'add'.")
 
 @router.message(AdminStates.add_channel_name)
 async def add_ch_name(message: Message, state: FSMContext):
-    if message.text == "❌ Cancel":
-        await state.clear()
-        await message.answer("Cancelled.", reply_markup=admin_menu())
-        return
-    await state.update_data(ch_name=message.text.strip())
-    await message.answer("Enter channel link (e.g. https://t.me/mychannel):")
-    await state.set_state(AdminStates.add_channel_link)
+  if message.text == "❌ Cancel":
+      await state.clear()
+      await message.answer("Cancelled.", reply_markup=admin_menu())
+      return
+  await state.update_data(ch_name=message.text.strip())
+  await message.answer("Enter channel link (e.g. https://t.me/mychannel):")
+  await state.set_state(AdminStates.add_channel_link)
 
 @router.message(AdminStates.add_channel_link)
 async def add_ch_link(message: Message, state: FSMContext):
-    if message.text == "❌ Cancel":
-        await state.clear()
-        await message.answer("Cancelled.", reply_markup=admin_menu())
-        return
-    data = await state.get_data()
-    add_channel(data["ch_name"], message.text.strip())
-    await message.answer(
-        f"✅ Channel '<b>{data['ch_name']}</b>' added!",
-        reply_markup=admin_menu(), parse_mode="HTML"
-    )
-    await state.clear()
+  if message.text == "❌ Cancel":
+      await state.clear()
+      await message.answer("Cancelled.", reply_markup=admin_menu())
+      return
+  data = await state.get_data()
+  add_channel(data["ch_name"], message.text.strip())
+  await message.answer(
+      f"✅ Channel '<b>{data['ch_name']}</b>' added!",
+      reply_markup=admin_menu(), parse_mode="HTML"
+  )
+  await state.clear()
 
 # ─── EXPIRE ORDERS — Manual ───────────────────────────────────────────────────
 @router.message(Command("expire"))
 async def manual_expire(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-    expired = expire_orders()
-    if not expired:
-        await message.answer("✅ No expired orders to clean up.")
-        return
-    await message.answer(
-        f"🗑 <b>Expired {len(expired)} order(s)</b>\n\n" +
-        "\n".join([f"• <code>#{o['id']}</code> — {o['voucher_name']}" for o in expired]),
-        parse_mode="HTML"
-    )
+  if not is_admin(message.from_user.id):
+      return
+  expired = expire_orders()
+  if not expired:
+      await message.answer("✅ No expired orders to clean up.")
+      return
+  await message.answer(
+      f"🗑 <b>Expired {len(expired)} order(s)</b>\n\n" +
+      "\n".join([f"• <code>#{o['id']}</code> — {o['voucher_name']}" for o in expired]),
+      parse_mode="HTML"
+  )
 
 # ─── ORDER SEARCH ─────────────────────────────────────────────────────────────
 @router.message(Command("order"))
 async def search_order(message: Message, command: CommandObject):
-    if not is_admin(message.from_user.id):
-        return
-    if not command.args:
-        await message.answer("Usage: <code>/order &lt;ORDER_ID&gt;</code>", parse_mode="HTML")
-        return
-    order_id = command.args.strip().upper()
-    order = get_order(order_id)
-    if not order:
-        await message.answer(f"❌ Order <code>#{order_id}</code> not found.", parse_mode="HTML")
-        return
+  if not is_admin(message.from_user.id):
+      return
+  if not command.args:
+      await message.answer("Usage: <code>/order &lt;ORDER_ID&gt;</code>", parse_mode="HTML")
+      return
+  order_id = command.args.strip().upper()
+  order = get_order(order_id)
+  if not order:
+      await message.answer(f"❌ Order <code>#{order_id}</code> not found.", parse_mode="HTML")
+      return
 
-    status_map = {
-        "pending": "⏳ Pending", "paid": "💰 Payment Detected",
-        "approved": "✅ Delivered", "rejected": "❌ Rejected",
-        "cancelled": "🚫 Cancelled", "expired": "⌛ Expired",
-    }
-    unique_amount = order.get("unique_amount") or order["total_price"]
-    codes = get_order_codes(order_id)
+  status_map = {
+      "pending": "⏳ Pending", "paid": "💰 Payment Detected",
+      "approved": "✅ Delivered", "rejected": "❌ Rejected",
+      "cancelled": "🚫 Cancelled", "expired": "⌛ Expired",
+  }
+  unique_amount = order.get("unique_amount") or order["total_price"]
+  codes = get_order_codes(order_id)
 
-    text = (
-        f"🔍 <b>ORDER LOOKUP</b>\n{DIVIDER}\n\n"
-        f"🆔 Order: <code>#{order['id']}</code>\n"
-        f"👤 User: <code>{order['user_id']}</code>\n"
-        f"🎁 {order['voucher_name']} × {order['quantity']}\n"
-        f"💵 Base: ₹{order['total_price']:.0f}\n"
-        f"🎯 Unique: ₹{unique_amount:.2f}\n"
-        f"📊 Status: {status_map.get(order['status'], order['status'])}\n"
-        f"📅 Created: {str(order['created_at'])[:16]}"
-    )
-    if codes:
-        codes_block = "\n".join([f"🔑 <code>{c}</code>" for c in codes])
-        text += f"\n\n📦 <b>Codes:</b>\n{codes_block}"
+  text = (
+      f"🔍 <b>ORDER LOOKUP</b>\n{DIVIDER}\n\n"
+      f"🆔 Order: <code>#{order['id']}</code>\n"
+      f"👤 User: <code>{order['user_id']}</code>\n"
+      f"🎁 {order['voucher_name']} × {order['quantity']}\n"
+      f"💵 Base: ₹{order['total_price']:.0f}\n"
+      f"🎯 Unique: ₹{unique_amount:.2f}\n"
+      f"📊 Status: {status_map.get(order['status'], order['status'])}\n"
+      f"📅 Created: {str(order['created_at'])[:16]}"
+  )
+  if codes:
+      codes_block = "\n".join([f"🔑 <code>{c}</code>" for c in codes])
+      text += f"\n\n📦 <b>Codes:</b>\n{codes_block}"
 
-    markup = admin_approve_keyboard(order_id) if order["status"] in ("pending", "paid") else None
-    await message.answer(text, parse_mode="HTML", reply_markup=markup)
+  markup = admin_approve_keyboard(order_id) if order["status"] in ("pending", "paid") else None
+  await message.answer(text, parse_mode="HTML", reply_markup=markup)
 
 # ─── MAIN MENU ────────────────────────────────────────────────────────────────
 @router.message(F.text == "🏠 Main Menu")
 async def go_main_menu(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer("🏠 Main Menu", reply_markup=main_menu())
+  await state.clear()
+  await message.answer("🏠 Main Menu", reply_markup=main_menu())
