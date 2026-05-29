@@ -173,6 +173,10 @@ def get_order_codes(order_id: str) -> list[str]:
     rows = conn.execute(
         "SELECT code FROM order_codes WHERE order_id = ?", (order_id,)
     ).fetchall()
+    if not rows:
+        rows = conn.execute(
+            "SELECT code FROM codes WHERE used_in_order = ?", (order_id,)
+        ).fetchall()
     conn.close()
     return [r["code"] for r in rows]
 
