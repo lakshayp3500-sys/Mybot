@@ -2,8 +2,6 @@
 handlers/start.py — Start, welcome, disclaimer, support, channels.
 """
 
-import asyncio
-
 from aiogram import Router, F, Bot
 from aiogram.types import Message
 from aiogram.filters import CommandStart
@@ -15,7 +13,6 @@ from keyboards.reply import main_menu
 
 router = Router()
 
-
 @router.message(CommandStart())
 async def cmd_start(message: Message, bot: Bot):
     user = message.from_user
@@ -23,9 +20,6 @@ async def cmd_start(message: Message, bot: Bot):
     full_name = user.full_name or user.first_name or "User"
 
     is_new = register_user(user.id, username, full_name)
-
-    await message.bot.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(0.8)
 
     support = get_setting("support_username") or "@admin"
 
@@ -43,11 +37,8 @@ async def cmd_start(message: Message, bot: Bot):
             except Exception:
                 pass
 
-
 @router.message(F.text == "📜 Disclaimer")
 async def disclaimer(message: Message):
-    await message.bot.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(0.7)
     await message.answer(
         "📜 <b>DISCLAIMER</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -61,11 +52,8 @@ async def disclaimer(message: Message):
         parse_mode="HTML"
     )
 
-
 @router.message(F.text == "🆘 Support")
 async def support(message: Message):
-    await message.bot.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(0.7)
     support_username = get_setting("support_username") or "@admin"
     await message.answer(
         f"🆘 <b>SUPPORT</b>\n"
@@ -78,11 +66,8 @@ async def support(message: Message):
         parse_mode="HTML"
     )
 
-
 @router.message(F.text == "📢 Our Channels")
 async def our_channels(message: Message):
-    await message.bot.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(0.7)
     channels = get_all_channels()
     if not channels:
         await message.answer(
