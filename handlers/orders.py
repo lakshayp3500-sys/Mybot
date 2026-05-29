@@ -12,6 +12,7 @@ from keyboards.inline import orders_keyboard, order_detail_keyboard
 
 router = Router()
 
+
 @router.message(F.text == "📦 My Orders")
 async def my_orders(message: Message):
     orders = get_user_orders(message.from_user.id)
@@ -41,35 +42,30 @@ async def my_orders(message: Message):
         parse_mode="HTML"
     )
 
+
 @router.callback_query(F.data.startswith("view_order:"))
 async def view_order(callback: CallbackQuery):
-    await callback.answer()
     order_id = callback.data.split(":")[1]
+    order = get_order(order_id)
 
-    try:
-        order = get_order(order_id)
+    if not order or order["user_id"] != callback.from_user.id:
+        await callback.answer("Order not found!", show_alert=True)
+        return
 
-        if not order or int(order["user_id"]) != callback.from_user.id:
-            await callback.message.answer("❌ Order not found!", parse_mode="HTML")
-            return
+    codes = get_order_codes(order_id) if order["status"] == "approved" else []
 
-        codes = get_order_codes(order_id) if order["status"] == "approved" else []
-        text = order_detail_msg(order, codes)
+    text = order_detail_msg(order, codes)
 
-        await callback.message.edit_text(
-            text,
-            reply_markup=order_detail_keyboard(order_id, order["status"]),
-            parse_mode="HTML"
-        )
-    except Exception:
-        await callback.message.answer(
-            "⚠️ Could not load order details. Please try again.",
-            parse_mode="HTML"
-        )
+    await callback.message.edit_text(
+        text,
+        reply_markup=order_detail_keyboard(order_id, order["status"]),
+        parse_mode="HTML"
+    )
+    await callback.answer()
+
 
 @router.callback_query(F.data == "back_orders")
 async def back_orders(callback: CallbackQuery):
-    await callback.answer()
     orders = get_user_orders(callback.from_user.id)
     if not orders:
         await callback.message.edit_text(
@@ -93,3 +89,4 @@ async def back_orders(callback: CallbackQuery):
         reply_markup=orders_keyboard(orders),
         parse_mode="HTML"
     )
+    await callback.answer()
