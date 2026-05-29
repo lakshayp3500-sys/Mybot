@@ -734,10 +734,34 @@ async def remove_codes_start(message: Message, state: FSMContext):
         "\n\nSend voucher ID to remove ALL unused codes:",
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
-    await state.set_state(AdminStates.remove_voucher)
+    await state.set_state(AdminStates.remove_codes_voucher)
 
 
-# ─── BROADCAST ────────────────────────────────────────────────────────────────
+  @router.message(AdminStates.remove_codes_voucher)
+  async def remove_codes_voucher_h(message: Message, state: FSMContext):
+      if message.text == "❌ Cancel":
+          await state.clear()
+          await message.answer("Cancelled.", reply_markup=admin_menu())
+          return
+      try:
+          vid = int(message.text.strip())
+      except ValueError:
+          await message.answer("⚠️ Enter a valid ID number!")
+          return
+      voucher = get_voucher(vid)
+      if not voucher:
+          await message.answer("❌ Voucher not found!")
+          return
+      remove_all_codes(vid)
+      await message.answer(
+          f"✅ <b>All unused codes removed!</b>\n\n"
+          f"🎁 {voucher['name']} — stock is now 0.",
+          reply_markup=admin_menu(), parse_mode="HTML"
+      )
+      await state.clear()
+
+
+  # ─── BROADCAST ────────────────────────────────────────────────────────────────
 @router.message(F.text == "📢 Broadcast")
 async def broadcast_start(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id):
