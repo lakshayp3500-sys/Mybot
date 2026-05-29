@@ -2,7 +2,6 @@
 handlers/admin.py — Full admin panel with premium UI, live orders, sale receipts, SMS verify.
 """
 
-import asyncio
 from datetime import datetime
 
 from aiogram import Router, F, Bot
@@ -34,10 +33,8 @@ from keyboards.inline import admin_approve_keyboard
 
 router = Router()
 
-
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
-
 
 # ─── ADMIN PANEL ──────────────────────────────────────────────────────────────
 @router.message(Command("admin"))
@@ -45,8 +42,6 @@ async def admin_panel(message: Message):
     if not is_admin(message.from_user.id):
         await message.answer("❌ Access Denied.")
         return
-    await message.bot.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(0.8)
     stats = get_stats()
     await message.answer(
         f"🔐 <b>ADMIN PANEL</b>\n"
@@ -59,7 +54,6 @@ async def admin_panel(message: Message):
         reply_markup=admin_menu(),
         parse_mode="HTML"
     )
-
 
 # ─── SMS AUTO-VERIFY (/pay command) ───────────────────────────────────────────
 @router.message(Command("pay"))
@@ -77,7 +71,6 @@ async def pay_via_sms(message: Message, command: CommandObject, bot: Bot):
         return
     await _process_sms(message, bot, command.args.strip())
 
-
 @router.message(Command("sms"))
 async def sms_alias(message: Message, command: CommandObject, bot: Bot):
     if not is_admin(message.from_user.id):
@@ -86,7 +79,6 @@ async def sms_alias(message: Message, command: CommandObject, bot: Bot):
         await message.answer("Usage: <code>/sms &lt;SMS text&gt;</code>", parse_mode="HTML")
         return
     await _process_sms(message, bot, command.args.strip())
-
 
 async def _process_sms(message: Message, bot: Bot, sms_text: str):
     processing = await message.answer("🔄 <b>Processing payment...</b>", parse_mode="HTML")
@@ -155,14 +147,11 @@ async def _process_sms(message: Message, bot: Bot, sms_text: str):
     )
     await processing.edit_text(receipt + stock_note, parse_mode="HTML")
 
-
 # ─── LIVE ORDERS ──────────────────────────────────────────────────────────────
 @router.message(F.text == "📡 Live Orders")
 async def live_orders(message: Message):
     if not is_admin(message.from_user.id):
         return
-    await message.bot.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(0.8)
 
     orders = get_pending_orders()
     now = datetime.now()
@@ -211,14 +200,11 @@ async def live_orders(message: Message):
         )
         await message.answer(text, reply_markup=admin_approve_keyboard(o["id"]), parse_mode="HTML")
 
-
 # ─── PENDING ORDERS ───────────────────────────────────────────────────────────
 @router.message(F.text == "⏳ Pending Orders")
 async def pending_orders_btn(message: Message):
     if not is_admin(message.from_user.id):
         return
-    await message.bot.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(0.7)
     orders = get_pending_orders()
     if not orders:
         await message.answer("✅ <b>No Pending Orders</b>", parse_mode="HTML")
@@ -243,7 +229,6 @@ async def pending_orders_btn(message: Message):
             f"📅 {str(order['created_at'])[:16]}"
         )
         await message.answer(text, reply_markup=admin_approve_keyboard(order["id"]), parse_mode="HTML")
-
 
 # ─── MANUAL APPROVE ───────────────────────────────────────────────────────────
 @router.callback_query(F.data.startswith("approve:"))
@@ -312,7 +297,6 @@ async def approve_order(callback: CallbackQuery, bot: Bot):
     await callback.message.answer(receipt + stock_note, parse_mode="HTML")
     await callback.answer("✅ Approved! Codes sent.", show_alert=True)
 
-
 # ─── MANUAL REJECT ────────────────────────────────────────────────────────────
 @router.callback_query(F.data.startswith("reject:"))
 async def reject_order_start(callback: CallbackQuery, state: FSMContext):
@@ -335,7 +319,6 @@ async def reject_order_start(callback: CallbackQuery, state: FSMContext):
     )
     await state.set_state(AdminStates.reject_reason)
     await callback.answer()
-
 
 @router.message(AdminStates.reject_reason)
 async def reject_order_reason(message: Message, state: FSMContext, bot: Bot):
@@ -371,14 +354,11 @@ async def reject_order_reason(message: Message, state: FSMContext, bot: Bot):
     )
     await state.clear()
 
-
 # ─── STATISTICS ───────────────────────────────────────────────────────────────
 @router.message(F.text == "📊 Statistics")
 async def view_statistics(message: Message):
     if not is_admin(message.from_user.id):
         return
-    await message.bot.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(0.8)
     stats = get_stats()
     low_stock = get_low_stock_vouchers(5)
     out_of_stock = get_out_of_stock_vouchers()
@@ -403,14 +383,11 @@ async def view_statistics(message: Message):
 
     await message.answer(text, parse_mode="HTML")
 
-
 # ─── VIEW STOCK ───────────────────────────────────────────────────────────────
 @router.message(F.text == "📦 View Stock")
 async def view_stock(message: Message):
     if not is_admin(message.from_user.id):
         return
-    await message.bot.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(0.7)
     vouchers = get_all_vouchers_with_stock()
     if not vouchers:
         await message.answer("⚠️ No vouchers found.")
@@ -429,7 +406,6 @@ async def view_stock(message: Message):
         parse_mode="HTML"
     )
 
-
 # ─── ADD VOUCHER ──────────────────────────────────────────────────────────────
 @router.message(F.text == "➕ Add Voucher")
 async def add_voucher_start(message: Message, state: FSMContext):
@@ -437,7 +413,6 @@ async def add_voucher_start(message: Message, state: FSMContext):
         return
     await message.answer("📝 Enter the voucher name:", reply_markup=cancel_keyboard())
     await state.set_state(AdminStates.add_voucher_name)
-
 
 @router.message(AdminStates.add_voucher_name)
 async def add_voucher_name_h(message: Message, state: FSMContext):
@@ -448,7 +423,6 @@ async def add_voucher_name_h(message: Message, state: FSMContext):
     await state.update_data(voucher_name=message.text.strip())
     await message.answer("💰 Enter price per code (₹):")
     await state.set_state(AdminStates.add_voucher_price)
-
 
 @router.message(AdminStates.add_voucher_price)
 async def add_voucher_price_h(message: Message, state: FSMContext):
@@ -475,7 +449,6 @@ async def add_voucher_price_h(message: Message, state: FSMContext):
         await message.answer("❌ A voucher with this name already exists!", reply_markup=admin_menu())
     await state.clear()
 
-
 # ─── DELETE VOUCHER ───────────────────────────────────────────────────────────
 @router.message(F.text == "❌ Delete Voucher")
 async def delete_voucher_start(message: Message, state: FSMContext):
@@ -493,7 +466,6 @@ async def delete_voucher_start(message: Message, state: FSMContext):
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
     await state.set_state(AdminStates.remove_voucher)
-
 
 @router.message(AdminStates.remove_voucher)
 async def delete_voucher_h(message: Message, state: FSMContext):
@@ -517,7 +489,6 @@ async def delete_voucher_h(message: Message, state: FSMContext):
     )
     await state.clear()
 
-
 # ─── SET PRICE ────────────────────────────────────────────────────────────────
 @router.message(F.text == "💰 Set Price")
 async def set_price_start(message: Message, state: FSMContext):
@@ -530,7 +501,6 @@ async def set_price_start(message: Message, state: FSMContext):
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
     await state.set_state(AdminStates.set_price_voucher)
-
 
 @router.message(AdminStates.set_price_voucher)
 async def set_price_voucher_h(message: Message, state: FSMContext):
@@ -551,7 +521,6 @@ async def set_price_voucher_h(message: Message, state: FSMContext):
     await message.answer(f"Enter new price for <b>{voucher['name']}</b> (₹):", parse_mode="HTML")
     await state.set_state(AdminStates.set_price_value)
 
-
 @router.message(AdminStates.set_price_value)
 async def set_price_value_h(message: Message, state: FSMContext):
     if message.text == "❌ Cancel":
@@ -570,7 +539,6 @@ async def set_price_value_h(message: Message, state: FSMContext):
         reply_markup=admin_menu(), parse_mode="HTML"
     )
     await state.clear()
-
 
 # ─── SET DISCLAIMER ───────────────────────────────────────────────────────────
 @router.message(F.text == "📋 Set Disclaimer")
@@ -595,7 +563,6 @@ async def set_disclaimer_start(message: Message, state: FSMContext):
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
     await state.set_state(AdminStates.set_disclaimer_voucher)
-
 
 @router.message(AdminStates.set_disclaimer_voucher)
 async def set_disclaimer_voucher_h(message: Message, state: FSMContext):
@@ -631,7 +598,6 @@ async def set_disclaimer_voucher_h(message: Message, state: FSMContext):
     )
     await state.set_state(AdminStates.set_disclaimer_text)
 
-
 @router.message(AdminStates.set_disclaimer_text)
 async def set_disclaimer_text_h(message: Message, state: FSMContext):
     if message.text == "❌ Cancel":
@@ -663,7 +629,6 @@ async def set_disclaimer_text_h(message: Message, state: FSMContext):
         )
     await state.clear()
 
-
 # ─── ADD CODES ────────────────────────────────────────────────────────────────
 @router.message(F.text == "📥 Add Codes")
 async def add_codes_start(message: Message, state: FSMContext):
@@ -676,7 +641,6 @@ async def add_codes_start(message: Message, state: FSMContext):
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
     await state.set_state(AdminStates.add_codes_voucher)
-
 
 @router.message(AdminStates.add_codes_voucher)
 async def add_codes_select_h(message: Message, state: FSMContext):
@@ -702,7 +666,6 @@ async def add_codes_select_h(message: Message, state: FSMContext):
     )
     await state.set_state(AdminStates.add_codes_input)
 
-
 @router.message(AdminStates.add_codes_input)
 async def add_codes_input_h(message: Message, state: FSMContext):
     if message.text == "❌ Cancel":
@@ -721,7 +684,6 @@ async def add_codes_input_h(message: Message, state: FSMContext):
     )
     await state.clear()
 
-
 # ─── REMOVE CODES ─────────────────────────────────────────────────────────────
 @router.message(F.text == "🗑 Remove Codes")
 async def remove_codes_start(message: Message, state: FSMContext):
@@ -735,7 +697,6 @@ async def remove_codes_start(message: Message, state: FSMContext):
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
     await state.set_state(AdminStates.remove_codes_voucher)
-
 
   @router.message(AdminStates.remove_codes_voucher)
   async def remove_codes_voucher_h(message: Message, state: FSMContext):
@@ -760,7 +721,6 @@ async def remove_codes_start(message: Message, state: FSMContext):
       )
       await state.clear()
 
-
   # ─── BROADCAST ────────────────────────────────────────────────────────────────
 @router.message(F.text == "📢 Broadcast")
 async def broadcast_start(message: Message, state: FSMContext):
@@ -773,7 +733,6 @@ async def broadcast_start(message: Message, state: FSMContext):
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
     await state.set_state(AdminStates.broadcast_message)
-
 
 @router.message(AdminStates.broadcast_message)
 async def broadcast_send(message: Message, state: FSMContext, bot: Bot):
@@ -797,7 +756,6 @@ async def broadcast_send(message: Message, state: FSMContext, bot: Bot):
     await message.answer("Done.", reply_markup=admin_menu())
     await state.clear()
 
-
 # ─── MAINTENANCE MODE ─────────────────────────────────────────────────────────
 @router.message(F.text == "🔧 Maintenance")
 async def maintenance_toggle(message: Message):
@@ -817,7 +775,6 @@ async def maintenance_toggle(message: Message):
         parse_mode="HTML"
     )
 
-
 def _maintenance_keyboard(is_on: bool):
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
@@ -827,7 +784,6 @@ def _maintenance_keyboard(is_on: bool):
         builder.button(text="🔴 Turn ON — Close Bot", callback_data="maintenance:on")
     builder.adjust(1)
     return builder.as_markup()
-
 
 @router.callback_query(F.data.startswith("maintenance:"))
 async def maintenance_callback(callback: CallbackQuery):
@@ -865,7 +821,6 @@ async def maintenance_callback(callback: CallbackQuery):
         )
         await callback.answer("🟢 Maintenance OFF!", show_alert=True)
 
-
 # ─── SUPPORT SETTINGS ─────────────────────────────────────────────────────────
 @router.message(F.text == "🆘 Support Settings")
 async def support_settings(message: Message, state: FSMContext):
@@ -879,7 +834,6 @@ async def support_settings(message: Message, state: FSMContext):
     )
     await state.set_state(AdminStates.set_support)
 
-
 @router.message(AdminStates.set_support)
 async def set_support_h(message: Message, state: FSMContext):
     if message.text == "❌ Cancel":
@@ -892,7 +846,6 @@ async def set_support_h(message: Message, state: FSMContext):
         reply_markup=admin_menu(), parse_mode="HTML"
     )
     await state.clear()
-
 
 # ─── MANAGE CHANNELS ──────────────────────────────────────────────────────────
 @router.message(F.text == "📢 Manage Channels")
@@ -910,7 +863,6 @@ async def manage_channels(message: Message, state: FSMContext):
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
     await state.set_state(AdminStates.remove_channel)
-
 
 @router.message(AdminStates.remove_channel)
 async def channels_action(message: Message, state: FSMContext):
@@ -930,7 +882,6 @@ async def channels_action(message: Message, state: FSMContext):
     except ValueError:
         await message.answer("⚠️ Enter a valid channel ID or 'add'.")
 
-
 @router.message(AdminStates.add_channel_name)
 async def add_ch_name(message: Message, state: FSMContext):
     if message.text == "❌ Cancel":
@@ -940,7 +891,6 @@ async def add_ch_name(message: Message, state: FSMContext):
     await state.update_data(ch_name=message.text.strip())
     await message.answer("Enter channel link (e.g. https://t.me/mychannel):")
     await state.set_state(AdminStates.add_channel_link)
-
 
 @router.message(AdminStates.add_channel_link)
 async def add_ch_link(message: Message, state: FSMContext):
@@ -956,7 +906,6 @@ async def add_ch_link(message: Message, state: FSMContext):
     )
     await state.clear()
 
-
 # ─── EXPIRE ORDERS — Manual ───────────────────────────────────────────────────
 @router.message(Command("expire"))
 async def manual_expire(message: Message):
@@ -971,7 +920,6 @@ async def manual_expire(message: Message):
         "\n".join([f"• <code>#{o['id']}</code> — {o['voucher_name']}" for o in expired]),
         parse_mode="HTML"
     )
-
 
 # ─── ORDER SEARCH ─────────────────────────────────────────────────────────────
 @router.message(Command("order"))
@@ -1011,7 +959,6 @@ async def search_order(message: Message, command: CommandObject):
 
     markup = admin_approve_keyboard(order_id) if order["status"] in ("pending", "paid") else None
     await message.answer(text, parse_mode="HTML", reply_markup=markup)
-
 
 # ─── MAIN MENU ────────────────────────────────────────────────────────────────
 @router.message(F.text == "🏠 Main Menu")
