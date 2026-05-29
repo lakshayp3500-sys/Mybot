@@ -278,7 +278,7 @@ def get_low_stock_vouchers(threshold: int = 5) -> list[dict]:
         FROM vouchers v
         LEFT JOIN codes c ON c.voucher_id = v.id
         GROUP BY v.id
-        HAVING stock <= ? AND stock > 0
+        HAVING COUNT(CASE WHEN c.is_used = 0 THEN 1 END) <= ? AND COUNT(CASE WHEN c.is_used = 0 THEN 1 END) > 0
     """, (threshold,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -291,7 +291,7 @@ def get_out_of_stock_vouchers() -> list[dict]:
         FROM vouchers v
         LEFT JOIN codes c ON c.voucher_id = v.id
         GROUP BY v.id
-        HAVING stock = 0
+        HAVING COUNT(CASE WHEN c.is_used = 0 THEN 1 END) = 0
     """).fetchall()
     conn.close()
     return [dict(r) for r in rows]
