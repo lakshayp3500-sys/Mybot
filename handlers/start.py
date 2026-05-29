@@ -13,6 +13,7 @@ from keyboards.reply import main_menu
 
 router = Router()
 
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, bot: Bot):
     user = message.from_user
@@ -37,6 +38,7 @@ async def cmd_start(message: Message, bot: Bot):
             except Exception:
                 pass
 
+
 @router.message(F.text == "📜 Disclaimer")
 async def disclaimer(message: Message):
     await message.answer(
@@ -52,6 +54,7 @@ async def disclaimer(message: Message):
         parse_mode="HTML"
     )
 
+
 @router.message(F.text == "🆘 Support")
 async def support(message: Message):
     support_username = get_setting("support_username") or "@admin"
@@ -65,6 +68,7 @@ async def support(message: Message):
         f"━━━━━━━━━━━━━━━━━━━━",
         parse_mode="HTML"
     )
+
 
 @router.message(F.text == "📢 Our Channels")
 async def our_channels(message: Message):
