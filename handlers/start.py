@@ -2,6 +2,8 @@
 handlers/start.py — Start, welcome, disclaimer, support, channels.
 """
 
+import asyncio
+
 from aiogram import Router, F, Bot
 from aiogram.types import Message
 from aiogram.filters import CommandStart
@@ -10,7 +12,6 @@ from config import ADMIN_IDS, BOT_NAME
 from utils.db_helpers import register_user, get_setting, get_all_channels
 from utils.messages import welcome_msg, new_user_alert
 from keyboards.reply import main_menu
-import asyncio
 
 router = Router()
 
