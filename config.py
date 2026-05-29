@@ -15,8 +15,7 @@ UPI_ID = os.getenv("UPI_ID", "yourname@upi")
 SHOP_NAME = os.getenv("SHOP_NAME", "MyShop")
 ORDER_EXPIRY_MINUTES = int(os.getenv("ORDER_EXPIRY_MINUTES", "5"))
 
-# Railway assigns PORT automatically; BOT_PORT is fallback for custom setups
-SMS_WEBHOOK_PORT = int(os.getenv("PORT", os.getenv("BOT_PORT", "5001")))
+SMS_WEBHOOK_PORT = int(os.getenv("BOT_PORT", "5001"))
 
 _replit_domain = os.getenv("REPLIT_DEV_DOMAIN", "")
 _railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
