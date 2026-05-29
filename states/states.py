@@ -13,6 +13,7 @@ class AdminStates(StatesGroup):
     add_voucher_name = State()
     add_voucher_price = State()
     remove_voucher = State()
+    remove_codes_voucher = State()
     set_price_voucher = State()
     set_price_value = State()
     add_codes_voucher = State()
