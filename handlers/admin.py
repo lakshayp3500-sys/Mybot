@@ -45,6 +45,8 @@ async def admin_panel(message: Message):
     if not is_admin(message.from_user.id):
         await message.answer("❌ Access Denied.")
         return
+    await message.bot.send_chat_action(message.chat.id, "typing")
+    await asyncio.sleep(0.8)
     stats = get_stats()
     await message.answer(
         f"🔐 <b>ADMIN PANEL</b>\n"
@@ -159,6 +161,8 @@ async def _process_sms(message: Message, bot: Bot, sms_text: str):
 async def live_orders(message: Message):
     if not is_admin(message.from_user.id):
         return
+    await message.bot.send_chat_action(message.chat.id, "typing")
+    await asyncio.sleep(0.8)
 
     orders = get_pending_orders()
     now = datetime.now()
@@ -213,6 +217,8 @@ async def live_orders(message: Message):
 async def pending_orders_btn(message: Message):
     if not is_admin(message.from_user.id):
         return
+    await message.bot.send_chat_action(message.chat.id, "typing")
+    await asyncio.sleep(0.7)
     orders = get_pending_orders()
     if not orders:
         await message.answer("✅ <b>No Pending Orders</b>", parse_mode="HTML")
@@ -371,6 +377,8 @@ async def reject_order_reason(message: Message, state: FSMContext, bot: Bot):
 async def view_statistics(message: Message):
     if not is_admin(message.from_user.id):
         return
+    await message.bot.send_chat_action(message.chat.id, "typing")
+    await asyncio.sleep(0.8)
     stats = get_stats()
     low_stock = get_low_stock_vouchers(5)
     out_of_stock = get_out_of_stock_vouchers()
@@ -401,6 +409,8 @@ async def view_statistics(message: Message):
 async def view_stock(message: Message):
     if not is_admin(message.from_user.id):
         return
+    await message.bot.send_chat_action(message.chat.id, "typing")
+    await asyncio.sleep(0.7)
     vouchers = get_all_vouchers_with_stock()
     if not vouchers:
         await message.answer("⚠️ No vouchers found.")
