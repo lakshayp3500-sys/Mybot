@@ -11,45 +11,15 @@ import logging
 import sys
 from aiohttp import web
 
-from aiogram import Bot, Dispatcher, BaseMiddleware
+from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import Message, CallbackQuery, TelegramObject
-from typing import Callable, Dict, Any, Awaitable
 
 from config import BOT_TOKEN, ADMIN_IDS, ORDER_EXPIRY_MINUTES, SMS_WEBHOOK_PORT
 from database import init_db
 from order_manager import expire_orders
 from handlers import start, buy, orders, admin
-
-
-class MaintenanceMiddleware(BaseMiddleware):
-    async def __call__(
-        self,
-        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
-        event: TelegramObject,
-        data: Dict[str, Any]
-    ) -> Any:
-        from utils.db_helpers import is_maintenance, get_setting
-        user = None
-        if isinstance(event, Message):
-            user = event.from_user
-        elif isinstance(event, CallbackQuery):
-            user = event.from_user
-
-        if user and user.id not in ADMIN_IDS and is_maintenance():
-            msg = get_setting("maintenance_msg") or (
-                "🔧 <b>BOT UNDER MAINTENANCE</b>\n\n"
-                "Hum filhal bot ko update kar rahe hain.\n"
-                "Thodi der mein wapas aayein. Shukriya! 🙏"
-            )
-            if isinstance(event, Message):
-                await event.answer(msg, parse_mode="HTML")
-            elif isinstance(event, CallbackQuery):
-                await event.answer("🔧 Bot is under maintenance. Please wait!", show_alert=True)
-            return
-        return await handler(event, data)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,38 +50,20 @@ async def sms_webhook(request: web.Request) -> web.Response:
     from utils.db_helpers import deliver_codes, get_voucher_stock, get_setting, get_user
     from utils.messages import success_delivery_msg, admin_sale_receipt
 
-    # ── Step 1: DB-only work (fast, no network) ──────────────────────────────
-    try:
-        order = verify_payment(sms_text)
-    except Exception as e:
-        logger.error(f"verify_payment error: {e}", exc_info=True)
-        return web.json_response({"status": "error", "error": str(e)}, status=500)
-
+    order = verify_payment(sms_text)
     if not order:
         return web.json_response({"status": "no_match"})
 
     order_id = order["id"]
-
-    try:
-        codes = deliver_codes(order_id, order["voucher_id"], order["quantity"])
-    except Exception as e:
-        logger.error(f"deliver_codes error for order {order_id}: {e}", exc_info=True)
-        return web.json_response({"status": "error", "error": str(e)}, status=500)
+    codes = deliver_codes(order_id, order["voucher_id"], order["quantity"])
 
     if codes is None:
         return web.json_response({"status": "error", "error": "Not enough stock"})
 
-    # ── Step 2: Reply to forwarder IMMEDIATELY — prevents retry/duplicate ─────
-    # Telegram notifications go out in the background task below.
-    logger.info(f"Auto-delivered order {order_id} via webhook")
+    matched_amount = order.get("matched_amount", order.get("unique_amount", 0))
+    support = get_setting("support_username") or "@admin"
 
-    async def _notify():
-        matched_amount = order.get("matched_amount", order.get("unique_amount", 0))
-        support = get_setting("support_username") or "@admin"
-
-        if not _bot:
-            return
-
+    if _bot:
         user_msg = success_delivery_msg(
             voucher_name=order["voucher_name"],
             codes=codes,
@@ -153,7 +105,7 @@ async def sms_webhook(request: web.Request) -> web.Response:
             except Exception:
                 pass
 
-    asyncio.create_task(_notify())
+    logger.info(f"Auto-delivered order {order_id} via webhook")
     return web.json_response({"status": "delivered", "order_id": order_id})
 
 
@@ -270,8 +222,6 @@ async def main():
     )
 
     dp = Dispatcher(storage=MemoryStorage())
-    dp.message.middleware(MaintenanceMiddleware())
-    dp.callback_query.middleware(MaintenanceMiddleware())
     dp.include_router(start.router)
     dp.include_router(buy.router)
     dp.include_router(orders.router)
