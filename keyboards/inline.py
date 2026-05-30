@@ -30,6 +30,14 @@ def quantity_keyboard(voucher_id: int) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def disclaimer_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✅ Accept & Continue", callback_data="disclaimer_accept")
+    builder.button(text="❌ Cancel", callback_data="disclaimer_cancel")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def payment_keyboard(order_id: str, upi_link: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="📲 Open UPI App to Pay", url=upi_link)
@@ -73,7 +81,6 @@ def order_detail_keyboard(order_id: str, status: str) -> InlineKeyboardMarkup:
     if status == "pending":
         builder.button(text="✅ I Have Paid", callback_data=f"i_paid:{order_id}")
         builder.button(text="❌ Cancel Order", callback_data=f"cancel_order:{order_id}")
-        builder.adjust(1)
     builder.button(text="🔙 Back to Orders", callback_data="back_orders")
     builder.adjust(1)
     return builder.as_markup()
