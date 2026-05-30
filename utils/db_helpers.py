@@ -170,13 +170,18 @@ def deliver_codes(order_id: str, voucher_id: int, quantity: int) -> list[str] | 
 
 def get_order_codes(order_id: str) -> list[str]:
     conn = get_conn()
+
+    # Primary: order_codes table
     rows = conn.execute(
         "SELECT code FROM order_codes WHERE order_id = ?", (order_id,)
     ).fetchall()
+
+    # Fallback: codes table (handles orders delivered before order_codes table existed)
     if not rows:
         rows = conn.execute(
             "SELECT code FROM codes WHERE used_in_order = ?", (order_id,)
         ).fetchall()
+
     conn.close()
     return [r["code"] for r in rows]
 
@@ -332,5 +337,23 @@ def add_channel(name: str, link: str):
 def remove_channel(channel_id: int):
     conn = get_conn()
     conn.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_voucher_disclaimer(voucher_id: int) -> str | None:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT disclaimer FROM vouchers WHERE id = ?", (voucher_id,)
+    ).fetchone()
+    conn.close()
+    if row and row["disclaimer"]:
+        return row["disclaimer"]
+    return None
+
+
+def set_voucher_disclaimer(voucher_id: int, text: str | None):
+    conn = get_conn()
+    conn.execute("UPDATE vouchers SET disclaimer = ? WHERE id = ?", (text, voucher_id))
     conn.commit()
     conn.close()
