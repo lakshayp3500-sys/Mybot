@@ -46,11 +46,6 @@ class UnifiedConn:
             return self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         return self._conn.cursor()
 
-    def _to_row(self, row):
-        if row is None:
-            return None
-        return Row(dict(row))
-
     def _prep(self, sql, params):
         if self._backend == "pg":
             return _pg_sql(sql), params or ()
@@ -177,6 +172,28 @@ def init_db():
         )
     """)
 
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS tickets (
+            id TEXT PRIMARY KEY,
+            user_id BIGINT,
+            category TEXT,
+            subject TEXT,
+            message TEXT,
+            status TEXT DEFAULT 'open',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS ticket_replies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_id TEXT,
+            from_admin INTEGER DEFAULT 0,
+            message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.executemany(
         """INSERT INTO settings (key, value) VALUES (?, ?)
            ON CONFLICT(key) DO NOTHING""",
@@ -193,6 +210,8 @@ def init_db():
 def run_migrations():
     """Run schema migrations on existing databases (safe to re-run)."""
     conn = get_conn()
+
+    # disclaimer column
     try:
         if IS_POSTGRES:
             conn.execute("ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS disclaimer TEXT")
@@ -200,5 +219,38 @@ def run_migrations():
             conn.execute("ALTER TABLE vouchers ADD COLUMN disclaimer TEXT")
         conn.commit()
     except Exception:
-        pass  # Column already exists — safe to ignore
+        pass
+
+    # tickets table
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tickets (
+                id TEXT PRIMARY KEY,
+                user_id BIGINT,
+                category TEXT,
+                subject TEXT,
+                message TEXT,
+                status TEXT DEFAULT 'open',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+    except Exception:
+        pass
+
+    # ticket_replies table
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ticket_replies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id TEXT,
+                from_admin INTEGER DEFAULT 0,
+                message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+    except Exception:
+        pass
+
     conn.close()
