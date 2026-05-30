@@ -5,6 +5,7 @@ class BuyStates(StatesGroup):
     select_voucher = State()
     select_quantity = State()
     custom_quantity = State()
+    disclaimer_confirm = State()
     waiting_payment = State()
 
 
@@ -22,3 +23,5 @@ class AdminStates(StatesGroup):
     add_channel_link = State()
     set_support = State()
     broadcast_message = State()
+    set_disclaimer_voucher = State()
+    set_disclaimer_text = State()
