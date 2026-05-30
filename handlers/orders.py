@@ -48,11 +48,13 @@ async def view_order(callback: CallbackQuery):
     order_id = callback.data.split(":")[1]
     order = get_order(order_id)
 
-    if not order or order["user_id"] != callback.from_user.id:
+    # Safe int comparison — guards against type mismatch between DB and Telegram
+    if not order or int(order["user_id"]) != int(callback.from_user.id):
         await callback.answer("Order not found!", show_alert=True)
         return
 
-    codes = get_order_codes(order_id) if order["status"] == "approved" else []
+    # Fetch codes for approved or paid orders
+    codes = get_order_codes(order_id) if order["status"] in ("approved", "paid") else []
 
     text = order_detail_msg(order, codes)
 
