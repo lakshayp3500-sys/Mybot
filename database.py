@@ -123,6 +123,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE,
             price REAL,
+            disclaimer TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -186,4 +187,18 @@ def init_db():
     )
 
     conn.commit()
+    conn.close()
+
+
+def run_migrations():
+    """Run schema migrations on existing databases (safe to re-run)."""
+    conn = get_conn()
+    try:
+        if IS_POSTGRES:
+            conn.execute("ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS disclaimer TEXT")
+        else:
+            conn.execute("ALTER TABLE vouchers ADD COLUMN disclaimer TEXT")
+        conn.commit()
+    except Exception:
+        pass  # Column already exists — safe to ignore
     conn.close()
