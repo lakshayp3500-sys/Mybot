@@ -1,9 +1,5 @@
 """
 main.py — Bot entry point.
-
-Runs Telegram polling + aiohttp webhook server on port 5001.
-SMS auto-verify: POST /sms from SMS forwarder app.
-Admin command: /pay <SMS text>
 """
 
 import asyncio
@@ -19,7 +15,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from config import BOT_TOKEN, ADMIN_IDS, ORDER_EXPIRY_MINUTES, SMS_WEBHOOK_PORT
 from database import init_db, run_migrations
 from order_manager import expire_orders
-from handlers import start, buy, orders, admin
+from handlers import start, buy, orders, admin, support
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,7 +57,7 @@ async def sms_webhook(request: web.Request) -> web.Response:
         return web.json_response({"status": "error", "error": "Not enough stock"})
 
     matched_amount = order.get("matched_amount", order.get("unique_amount", 0))
-    support = get_setting("support_username") or "@admin"
+    support_u = get_setting("support_username") or "@admin"
 
     if _bot:
         user_msg = success_delivery_msg(
@@ -69,7 +65,7 @@ async def sms_webhook(request: web.Request) -> web.Response:
             codes=codes,
             amount=matched_amount,
             order_id=order_id,
-            support=support
+            support=support_u
         )
         try:
             await _bot.send_message(order["user_id"], user_msg, parse_mode="HTML")
@@ -156,8 +152,7 @@ async def upi_redirect(request: web.Request) -> web.Response:
     <div class="amount">₹{am}</div>
     <div class="upi">{pa}</div>
     <a class="btn" href="{upi_link}">📲 Open UPI App</a>
-    <p class="note">Page will open your UPI app automatically.<br>
-    Use <b>exact amount ₹{am}</b> for auto-verification.</p>
+    <p class="note">Use <b>exact amount ₹{am}</b> for auto-verification.</p>
   </div>
 </body>
 </html>"""
@@ -196,8 +191,7 @@ async def _expiry_loop(bot: Bot):
                         f"━━━━━━━━━━━━━━━━━━━━\n\n"
                         f"🆔 Order <code>#{order['id']}</code>\n"
                         f"🎁 {order['voucher_name']}\n\n"
-                        f"No payment detected within {ORDER_EXPIRY_MINUTES} minutes.\n"
-                        f"Tap <b>🛍 Buy Vouchers</b> to place a new order.",
+                        f"No payment detected. Tap <b>🛍 Buy Vouchers</b> to try again.",
                         parse_mode="HTML"
                     )
                 except Exception:
@@ -226,6 +220,7 @@ async def main():
     dp.include_router(start.router)
     dp.include_router(buy.router)
     dp.include_router(orders.router)
+    dp.include_router(support.router)
     dp.include_router(admin.router)
 
     await _bot.delete_webhook(drop_pending_updates=True)
