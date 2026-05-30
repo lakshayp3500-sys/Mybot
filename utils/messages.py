@@ -182,14 +182,25 @@ def order_detail_msg(order: dict, codes: list[str]) -> str:
         f"🔢 <b>Quantity:</b> {order['quantity']}\n"
         f"💵 <b>Paid:</b> ₹{unique_amount:.2f}\n"
         f"🆔 <b>Order ID:</b> <code>#{order['id']}</code>\n"
-        f"📅 <b>Date:</b> {order['created_at'][:16]}\n"
+        f"📅 <b>Date:</b> {str(order['created_at'])[:16]}\n"
         f"📌 <b>Status:</b> {status_emoji}\n"
     )
 
     if codes:
         codes_block = "\n".join([f"🔑 <code>{c}</code>" for c in codes])
         text += f"\n{DIVIDER}\n🎁 <b>Your Codes:</b>\n{codes_block}\n{DIVIDER}"
-    elif order["status"] == "approved":
+    elif order["status"] in ("approved", "paid"):
         text += f"\n\n<i>Codes were delivered. Contact support if missing.</i>"
 
     return text
+
+
+def disclaimer_msg(voucher_name: str, disclaimer_text: str) -> str:
+    return (
+        f"📋 <b>DISCLAIMER</b>\n"
+        f"{DIVIDER}\n\n"
+        f"🎁 <b>Product:</b> {voucher_name}\n\n"
+        f"{disclaimer_text}\n\n"
+        f"{DIVIDER}\n"
+        f"<i>Tap <b>✅ Accept &amp; Continue</b> to proceed with purchase\nor <b>❌ Cancel</b> to go back.</i>"
+    )
