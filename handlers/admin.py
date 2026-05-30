@@ -20,7 +20,8 @@ from utils.db_helpers import (
     get_setting, set_setting,
     get_all_channels, add_channel, remove_channel,
     get_stats, get_all_users, get_pending_orders,
-    get_low_stock_vouchers, get_out_of_stock_vouchers, get_order_codes
+    get_low_stock_vouchers, get_out_of_stock_vouchers, get_order_codes,
+    get_voucher_disclaimer, set_voucher_disclaimer
 )
 from utils.messages import (
     admin_sale_receipt, admin_manual_sale_receipt, DIVIDER
@@ -454,13 +455,18 @@ async def add_voucher_price_h(message: Message, state: FSMContext):
     if success:
         await message.answer(
             f"✅ <b>Voucher Added!</b>\n\n"
-            f"🎁 Name: <b>{data['voucher_name']}</b>\n"
-            f"💰 Price: ₹{price:.0f}\n\n"
-            f"Now use <b>📥 Add Codes</b> to upload codes.",
-            reply_markup=admin_menu(), parse_mode="HTML"
+            f"🎁 <b>{data['voucher_name']}</b>\n"
+            f"💰 Price: ₹{price:.0f} per code\n\n"
+            f"Now use <b>📥 Add Codes</b> to add stock.",
+            reply_markup=admin_menu(),
+            parse_mode="HTML"
         )
     else:
-        await message.answer("❌ A voucher with this name already exists!", reply_markup=admin_menu())
+        await message.answer(
+            f"⚠️ A voucher named '<b>{data['voucher_name']}</b>' already exists!",
+            reply_markup=admin_menu(),
+            parse_mode="HTML"
+        )
     await state.clear()
 
 
@@ -471,13 +477,12 @@ async def delete_voucher_start(message: Message, state: FSMContext):
         return
     vouchers = get_all_vouchers_with_stock()
     if not vouchers:
-        await message.answer("No vouchers found.")
+        await message.answer("⚠️ No vouchers to delete.")
         return
-    lines = [f"<b>{v['id']}</b>. {v['name']} ({v['stock']} codes)" for v in vouchers]
+    lines = [f"<b>{v['id']}</b>. {v['name']} ({v['stock']} codes, ₹{v['price']:.0f})" for v in vouchers]
     await message.answer(
-        f"🗑 <b>DELETE VOUCHER</b>\n{DIVIDER}\n\n"
-        + "\n".join(lines)
-        + "\n\nSend the voucher <b>ID number</b> to delete it:",
+        f"🗑 <b>DELETE VOUCHER</b>\n{DIVIDER}\n\n" + "\n".join(lines) +
+        "\n\nSend voucher ID to delete (this removes all codes too):",
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
     await state.set_state(AdminStates.remove_voucher)
@@ -492,16 +497,15 @@ async def delete_voucher_h(message: Message, state: FSMContext):
     try:
         vid = int(message.text.strip())
     except ValueError:
-        await message.answer("⚠️ Enter a valid ID number!")
+        await message.answer("⚠️ Enter a valid ID:")
         return
     voucher = get_voucher(vid)
     if not voucher:
-        await message.answer("❌ Voucher not found!")
+        await message.answer("❌ Voucher not found.")
         return
     delete_voucher(vid)
     await message.answer(
-        f"✅ <b>{voucher['name']}</b> and all its codes deleted!",
-        reply_markup=admin_menu(), parse_mode="HTML"
+        f"✅ <b>{voucher['name']}</b> deleted!", reply_markup=admin_menu(), parse_mode="HTML"
     )
     await state.clear()
 
@@ -512,9 +516,13 @@ async def set_price_start(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     vouchers = get_all_vouchers_with_stock()
-    lines = [f"<b>{v['id']}</b>. {v['name']} (₹{v['price']:.0f})" for v in vouchers]
+    if not vouchers:
+        await message.answer("⚠️ No vouchers found.")
+        return
+    lines = [f"<b>{v['id']}</b>. {v['name']} — ₹{v['price']:.0f}" for v in vouchers]
     await message.answer(
-        f"💰 <b>SET PRICE</b>\n{DIVIDER}\n\n" + "\n".join(lines) + "\n\nSend voucher ID:",
+        f"💰 <b>SET PRICE</b>\n{DIVIDER}\n\n" + "\n".join(lines) +
+        "\n\nSend voucher ID:",
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
     await state.set_state(AdminStates.set_price_voucher)
@@ -529,14 +537,14 @@ async def set_price_voucher_h(message: Message, state: FSMContext):
     try:
         vid = int(message.text.strip())
     except ValueError:
-        await message.answer("⚠️ Enter a valid ID!")
+        await message.answer("⚠️ Enter a valid ID:")
         return
     voucher = get_voucher(vid)
     if not voucher:
-        await message.answer("❌ Voucher not found!")
+        await message.answer("❌ Not found.")
         return
-    await state.update_data(voucher_id=vid, voucher_name=voucher["name"])
-    await message.answer(f"Enter new price for <b>{voucher['name']}</b> (₹):", parse_mode="HTML")
+    await state.update_data(price_voucher_id=vid, price_voucher_name=voucher["name"])
+    await message.answer(f"💰 Enter new price for <b>{voucher['name']}</b> (₹):", parse_mode="HTML")
     await state.set_state(AdminStates.set_price_value)
 
 
@@ -549,12 +557,12 @@ async def set_price_value_h(message: Message, state: FSMContext):
     try:
         price = float(message.text.strip())
     except ValueError:
-        await message.answer("⚠️ Enter a valid number!")
+        await message.answer("⚠️ Enter a valid number:")
         return
     data = await state.get_data()
-    update_price(data["voucher_id"], price)
+    update_price(data["price_voucher_id"], price)
     await message.answer(
-        f"✅ Price updated to <b>₹{price:.0f}</b> for {data['voucher_name']}!",
+        f"✅ Price updated: <b>{data['price_voucher_name']}</b> → ₹{price:.0f}",
         reply_markup=admin_menu(), parse_mode="HTML"
     )
     await state.clear()
@@ -566,16 +574,20 @@ async def add_codes_start(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     vouchers = get_all_vouchers_with_stock()
+    if not vouchers:
+        await message.answer("⚠️ No vouchers found. Add a voucher first.")
+        return
     lines = [f"<b>{v['id']}</b>. {v['name']} ({v['stock']} codes)" for v in vouchers]
     await message.answer(
-        f"📥 <b>ADD CODES</b>\n{DIVIDER}\n\n" + "\n".join(lines) + "\n\nSend voucher ID:",
+        f"📥 <b>ADD CODES</b>\n{DIVIDER}\n\n" + "\n".join(lines) +
+        "\n\nSend voucher ID:",
         reply_markup=cancel_keyboard(), parse_mode="HTML"
     )
     await state.set_state(AdminStates.add_codes_voucher)
 
 
 @router.message(AdminStates.add_codes_voucher)
-async def add_codes_select_h(message: Message, state: FSMContext):
+async def add_codes_voucher_h(message: Message, state: FSMContext):
     if message.text == "❌ Cancel":
         await state.clear()
         await message.answer("Cancelled.", reply_markup=admin_menu())
@@ -583,17 +595,15 @@ async def add_codes_select_h(message: Message, state: FSMContext):
     try:
         vid = int(message.text.strip())
     except ValueError:
-        await message.answer("⚠️ Enter a valid ID!")
+        await message.answer("⚠️ Enter a valid ID:")
         return
     voucher = get_voucher(vid)
     if not voucher:
-        await message.answer("❌ Voucher not found!")
+        await message.answer("❌ Not found.")
         return
-    await state.update_data(voucher_id=vid, voucher_name=voucher["name"])
+    await state.update_data(codes_voucher_id=vid, codes_voucher_name=voucher["name"])
     await message.answer(
-        f"📥 Paste codes for <b>{voucher['name']}</b>\n\n"
-        f"One code per line:\n"
-        f"<code>ABC123\nXYZ999\nTEST777</code>",
+        f"📝 Paste codes for <b>{voucher['name']}</b>\n(one code per line):",
         parse_mode="HTML"
     )
     await state.set_state(AdminStates.add_codes_input)
@@ -606,13 +616,9 @@ async def add_codes_input_h(message: Message, state: FSMContext):
         await message.answer("Cancelled.", reply_markup=admin_menu())
         return
     data = await state.get_data()
-    count = add_codes_bulk(data["voucher_id"], message.text)
-    voucher = get_voucher(data["voucher_id"])
+    count = add_codes_bulk(data["codes_voucher_id"], message.text or "")
     await message.answer(
-        f"✅ <b>Codes Added!</b>\n\n"
-        f"🎁 {data['voucher_name']}\n"
-        f"➕ Added: <b>{count} codes</b>\n"
-        f"📦 Total stock: <b>{voucher['stock']} codes</b>",
+        f"✅ <b>{count} codes added</b> to <b>{data['codes_voucher_name']}</b>!",
         reply_markup=admin_menu(), parse_mode="HTML"
     )
     await state.clear()
@@ -624,6 +630,9 @@ async def remove_codes_start(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     vouchers = get_all_vouchers_with_stock()
+    if not vouchers:
+        await message.answer("⚠️ No vouchers found.")
+        return
     lines = [f"<b>{v['id']}</b>. {v['name']} ({v['stock']} unused codes)" for v in vouchers]
     await message.answer(
         f"🗑 <b>REMOVE CODES</b>\n{DIVIDER}\n\n" + "\n".join(lines) +
@@ -758,6 +767,86 @@ async def add_ch_link(message: Message, state: FSMContext):
         f"✅ Channel '<b>{data['ch_name']}</b>' added!",
         reply_markup=admin_menu(), parse_mode="HTML"
     )
+    await state.clear()
+
+
+# ─── SET DISCLAIMER ───────────────────────────────────────────────────────────
+@router.message(F.text == "📋 Set Disclaimer")
+async def set_disclaimer_start(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    vouchers = get_all_vouchers_with_stock()
+    if not vouchers:
+        await message.answer("⚠️ No vouchers found. Add a voucher first.")
+        return
+    lines = []
+    for v in vouchers:
+        d = get_voucher_disclaimer(v["id"])
+        status = "✅ Set" if d else "❌ Not set"
+        lines.append(f"<b>{v['id']}</b>. {v['name']} — {status}")
+    await message.answer(
+        f"📋 <b>SET DISCLAIMER</b>\n{DIVIDER}\n\n"
+        + "\n".join(lines) +
+        "\n\nSend voucher <b>ID</b> to set/update its disclaimer:",
+        reply_markup=cancel_keyboard(),
+        parse_mode="HTML"
+    )
+    await state.set_state(AdminStates.set_disclaimer_voucher)
+
+
+@router.message(AdminStates.set_disclaimer_voucher)
+async def set_disclaimer_voucher_h(message: Message, state: FSMContext):
+    if message.text == "❌ Cancel":
+        await state.clear()
+        await message.answer("Cancelled.", reply_markup=admin_menu())
+        return
+    try:
+        vid = int(message.text.strip())
+    except ValueError:
+        await message.answer("⚠️ Enter a valid voucher ID:")
+        return
+    voucher = get_voucher(vid)
+    if not voucher:
+        await message.answer("❌ Voucher not found. Try again:")
+        return
+    current = get_voucher_disclaimer(vid) or "Not set"
+    await state.update_data(disclaimer_voucher_id=vid, disclaimer_voucher_name=voucher["name"])
+    await message.answer(
+        f"📋 <b>{voucher['name']}</b>\n\n"
+        f"Current disclaimer:\n<i>{current}</i>\n\n"
+        f"Enter new disclaimer text, or send <code>clear</code> to remove it:",
+        parse_mode="HTML"
+    )
+    await state.set_state(AdminStates.set_disclaimer_text)
+
+
+@router.message(AdminStates.set_disclaimer_text)
+async def set_disclaimer_text_h(message: Message, state: FSMContext):
+    if message.text == "❌ Cancel":
+        await state.clear()
+        await message.answer("Cancelled.", reply_markup=admin_menu())
+        return
+    data = await state.get_data()
+    vid = data["disclaimer_voucher_id"]
+    voucher_name = data["disclaimer_voucher_name"]
+
+    if message.text and message.text.strip().lower() == "clear":
+        set_voucher_disclaimer(vid, None)
+        await message.answer(
+            f"✅ Disclaimer <b>removed</b> for <b>{voucher_name}</b>.\n"
+            f"Users will go directly to QR now.",
+            reply_markup=admin_menu(),
+            parse_mode="HTML"
+        )
+    else:
+        set_voucher_disclaimer(vid, message.text.strip() if message.text else "")
+        preview = (message.text or "")[:200]
+        await message.answer(
+            f"✅ Disclaimer set for <b>{voucher_name}</b>!\n\n"
+            f"<b>Preview:</b>\n<i>{preview}</i>",
+            reply_markup=admin_menu(),
+            parse_mode="HTML"
+        )
     await state.clear()
 
 
