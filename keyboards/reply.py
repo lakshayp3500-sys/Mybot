@@ -24,7 +24,8 @@ def admin_menu() -> ReplyKeyboardMarkup:
             [KeyboardButton(text="💰 Set Price"), KeyboardButton(text="📥 Add Codes")],
             [KeyboardButton(text="🗑 Remove Codes"), KeyboardButton(text="📢 Broadcast")],
             [KeyboardButton(text="📢 Manage Channels"), KeyboardButton(text="🆘 Support Settings")],
-            [KeyboardButton(text="📋 Set Disclaimer"), KeyboardButton(text="🏠 Main Menu")],
+            [KeyboardButton(text="📋 Set Disclaimer"), KeyboardButton(text="📩 Tickets")],
+            [KeyboardButton(text="🏠 Main Menu")],
         ],
         resize_keyboard=True
     )
