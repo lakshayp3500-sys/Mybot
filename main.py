@@ -17,7 +17,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import BOT_TOKEN, ADMIN_IDS, ORDER_EXPIRY_MINUTES, SMS_WEBHOOK_PORT
-from database import init_db
+from database import init_db, run_migrations
 from order_manager import expire_orders
 from handlers import start, buy, orders, admin
 
@@ -214,7 +214,8 @@ async def main():
         sys.exit(1)
 
     init_db()
-    logger.info("Database initialised.")
+    run_migrations()
+    logger.info("Database initialised and migrations applied.")
 
     _bot = Bot(
         token=BOT_TOKEN,
