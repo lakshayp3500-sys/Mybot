@@ -1,10 +1,8 @@
 """
 utils/db_helpers.py — All database helper functions.
-
-deliver_codes() is IDEMPOTENT — calling it multiple times for the same order
-returns the SAME codes without assigning new ones. Prevents double-delivery.
 """
 
+import uuid
 from database import get_conn
 
 
@@ -127,7 +125,6 @@ def remove_all_codes(voucher_id: int):
 
 def deliver_codes(order_id: str, voucher_id: int, quantity: int) -> list[str] | None:
     conn = get_conn()
-
     already = conn.execute(
         "SELECT code FROM order_codes WHERE order_id = ?", (order_id,)
     ).fetchall()
@@ -170,18 +167,13 @@ def deliver_codes(order_id: str, voucher_id: int, quantity: int) -> list[str] | 
 
 def get_order_codes(order_id: str) -> list[str]:
     conn = get_conn()
-
-    # Primary: order_codes table
     rows = conn.execute(
         "SELECT code FROM order_codes WHERE order_id = ?", (order_id,)
     ).fetchall()
-
-    # Fallback: codes table (handles orders delivered before order_codes table existed)
     if not rows:
         rows = conn.execute(
             "SELECT code FROM codes WHERE used_in_order = ?", (order_id,)
         ).fetchall()
-
     conn.close()
     return [r["code"] for r in rows]
 
@@ -262,6 +254,7 @@ def get_stats() -> dict:
     te = conn.execute("SELECT COALESCE(SUM(total_price), 0) as s FROM orders WHERE status = 'approved'").fetchone()["s"]
     ty = conn.execute("SELECT COALESCE(SUM(total_price), 0) as s FROM orders WHERE status = 'approved' AND DATE(approved_at) = DATE('now')").fetchone()["s"]
     tyo = conn.execute("SELECT COUNT(*) as c FROM orders WHERE status = 'approved' AND DATE(approved_at) = DATE('now')").fetchone()["c"]
+    ot = conn.execute("SELECT COUNT(*) as c FROM tickets WHERE status = 'open'").fetchone()["c"]
     conn.close()
     return {
         "total_users": tu,
@@ -269,7 +262,8 @@ def get_stats() -> dict:
         "pending_orders": po,
         "total_earnings": te,
         "today_earnings": ty,
-        "today_orders": tyo
+        "today_orders": tyo,
+        "open_tickets": ot
     }
 
 
@@ -287,7 +281,8 @@ def get_low_stock_vouchers(threshold: int = 5) -> list[dict]:
         FROM vouchers v
         LEFT JOIN codes c ON c.voucher_id = v.id
         GROUP BY v.id
-        HAVING COUNT(CASE WHEN c.is_used = 0 THEN 1 END) <= ? AND COUNT(CASE WHEN c.is_used = 0 THEN 1 END) > 0
+        HAVING COUNT(CASE WHEN c.is_used = 0 THEN 1 END) <= ?
+           AND COUNT(CASE WHEN c.is_used = 0 THEN 1 END) > 0
     """, (threshold,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -357,3 +352,83 @@ def set_voucher_disclaimer(voucher_id: int, text: str | None):
     conn.execute("UPDATE vouchers SET disclaimer = ? WHERE id = ?", (text, voucher_id))
     conn.commit()
     conn.close()
+
+
+# ── TICKET HELPERS ────────────────────────────────────────────────────────────
+
+def _gen_ticket_id() -> str:
+    return "TK-" + uuid.uuid4().hex[:8].upper()
+
+
+def create_ticket(user_id: int, category: str, subject: str, message: str) -> str:
+    ticket_id = _gen_ticket_id()
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO tickets (id, user_id, category, subject, message, status) VALUES (?, ?, ?, ?, ?, 'open')",
+        (ticket_id, user_id, category, subject, message)
+    )
+    conn.commit()
+    conn.close()
+    return ticket_id
+
+
+def get_ticket(ticket_id: str) -> dict | None:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_user_tickets(user_id: int) -> list[dict]:
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM tickets WHERE user_id = ? ORDER BY created_at DESC LIMIT 10",
+        (user_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_open_tickets() -> list[dict]:
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT t.*, u.username, u.full_name FROM tickets t "
+        "LEFT JOIN users u ON u.telegram_id = t.user_id "
+        "WHERE t.status = 'open' ORDER BY t.created_at ASC"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def close_ticket(ticket_id: str):
+    conn = get_conn()
+    conn.execute("UPDATE tickets SET status = 'closed' WHERE id = ?", (ticket_id,))
+    conn.commit()
+    conn.close()
+
+
+def add_ticket_reply(ticket_id: str, message: str, from_admin: bool = False):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO ticket_replies (ticket_id, from_admin, message) VALUES (?, ?, ?)",
+        (ticket_id, 1 if from_admin else 0, message)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_ticket_replies(ticket_id: str) -> list[dict]:
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM ticket_replies WHERE ticket_id = ? ORDER BY created_at ASC",
+        (ticket_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_open_ticket_count() -> int:
+    conn = get_conn()
+    row = conn.execute("SELECT COUNT(*) as c FROM tickets WHERE status = 'open'").fetchone()
+    conn.close()
+    return row["c"] if row else 0
