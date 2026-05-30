@@ -25,3 +25,8 @@ class AdminStates(StatesGroup):
     broadcast_message = State()
     set_disclaimer_voucher = State()
     set_disclaimer_text = State()
+    reply_ticket = State()
+
+
+class SupportStates(StatesGroup):
+    write_message = State()
